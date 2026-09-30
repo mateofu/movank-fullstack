@@ -4,7 +4,8 @@ COPY go.mod go.sum ./
 RUN go mod download
 COPY cmd ./cmd
 COPY internal ./internal
-RUN test -z "$(gofmt -l cmd internal)" && go vet ./... && go test -race ./...
+COPY integration ./integration
+RUN test -z "$(gofmt -l cmd internal integration)" && go vet ./... && go test -race ./...
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/api ./cmd/api
 
 FROM scratch

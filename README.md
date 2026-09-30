@@ -2,8 +2,8 @@
 
 Prueba full stack con Go, PostgreSQL, Redis y SvelteKit.
 
-Implementado: autenticación JWT, productos y ventas con idempotencia por comercio.
-Pendiente: pagos, outbox, dashboard SSE y PWA offline.
+Implementado: JWT, productos, ventas idempotentes, pagos simulados, reconciliación,
+outbox, worker y dashboard con Redis y SSE. Pendiente: frontend PWA offline.
 
 ## Ejecutar
 
@@ -17,13 +17,12 @@ Invoke-RestMethod http://127.0.0.1:8080/readyz
 
 ## Decisiones
 
-- PostgreSQL será la fuente de verdad y guardará la idempotencia; Redis será caché.
+- PostgreSQL guarda los datos y la idempotencia; Redis es una caché reconstruible.
 - El comercio se obtiene del token verificado.
-- `TIMEOUT` producirá `UNKNOWN`. Se guardará la referencia antes de cobrar y se
-  consultará esa misma operación para reconciliar, sin iniciar otro cobro.
-  El proveedor deberá soportar idempotencia y consulta; sin ellas, habrá revisión manual.
-- Pago confirmado y outbox se guardarán juntos. El worker interno recuperará
-  pendientes y procesará reintentos sin duplicar efectos; `LISTEN/NOTIFY` será un aviso.
+- `TIMEOUT` produce `UNKNOWN`. La reconciliación consulta la misma referencia;
+  si no hay respuesta, conserva el estado y las comprobaciones. No crea otro cobro.
+- Pago confirmado y outbox se guardan juntos. El worker recupera pendientes;
+  `LISTEN/NOTIFY` es un aviso. Los eventos repetidos envían el agregado completo.
 - IndexedDB y un Web Worker permitirán sincronizar con claves estables por comercio
   y usuario. El pago offline quedará en `PENDING_SYNC`. La instalación inicial requiere red.
 

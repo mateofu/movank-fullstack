@@ -13,11 +13,14 @@ import (
 
 	"github.com/mateofu/movank-fullstack/backend/internal/auth"
 	"github.com/mateofu/movank-fullstack/backend/internal/config"
+	"github.com/mateofu/movank-fullstack/backend/internal/dashboard"
 	"github.com/mateofu/movank-fullstack/backend/internal/database"
 	"github.com/mateofu/movank-fullstack/backend/internal/merchant"
+	"github.com/mateofu/movank-fullstack/backend/internal/payment"
 	"github.com/mateofu/movank-fullstack/backend/internal/product"
 	"github.com/mateofu/movank-fullstack/backend/internal/sale"
 	"github.com/mateofu/movank-fullstack/backend/internal/server"
+	"github.com/mateofu/movank-fullstack/backend/internal/worker"
 )
 
 func main() {
@@ -77,5 +80,14 @@ func run(logger *slog.Logger) error {
 	if err != nil {
 		return err
 	}
-	return server.Serve(ctx, listener, server.Handler(pool.Ping, tokens, merchants.Get, product.NewStore(pool), sale.NewStore(pool)), logger)
+	dash := dashboard.New(pool, os.Getenv("REDIS_ADDR"))
+	defer dash.Close()
+	hub := dashboard.NewHub()
+	payments := payment.New(pool, payment.NewSimulator(pool))
+	workerCtx, stopWorker := context.WithCancel(ctx)
+	done := make(chan struct{})
+	go func() { defer close(done); worker.New(pool, payments, dash, hub).Run(workerCtx, logger) }()
+	defer func() { stopWorker(); <-done }()
+	features := server.Features{Payments: payments, Dashboard: dash, Hub: hub, Shutdown: workerCtx}
+	return server.Serve(ctx, listener, server.Handler(pool.Ping, tokens, merchants.Get, product.NewStore(pool), sale.NewStore(pool), features), logger)
 }

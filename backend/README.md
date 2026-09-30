@@ -15,6 +15,9 @@ Arranque: [guía principal](../README.md). Contrato: [OpenAPI](../docs/api/opena
 - `GET /v1/products/{id}`: consultar producto.
 - `POST /v1/sales`: crear venta; requiere `Idempotency-Key`.
 - `GET /v1/sales/{id}`: consultar venta.
+- `POST /v1/sales/{id}/pay`: pagar con `method: CARD` y un `scenario`.
+- `GET /v1/dashboard/today`: pagos aprobados del día UTC.
+- `GET /v1/dashboard/stream`: agregado completo por SSE.
 
 Las rutas `/v1` requieren JWT. El comercio viene del token verificado y las
 consultas filtran por él; no hay RLS. Los importes son enteros en centavos de COP.
@@ -46,10 +49,32 @@ SHA-256 del pedido normalizado detecta cambios: misma clave y pedido devuelve
 la venta original con 201; otro pedido devuelve 409. Orden y mayúsculas de UUID
 no importan. Las claves no caducan y sobreviven reinicios; tras timeout o 503,
 repite la misma clave y pedido. Los errores de validación no reservan la clave.
-Los precios históricos no cambian. Los pagos siguen pendientes.
+Los precios históricos no cambian.
 
 Las migraciones son transaccionales, serializadas y repetibles. No se editan una
 vez aplicadas; las correcciones usan otra migración. No hay reversión automática.
+
+## Pagos y dashboard
+
+Un intento por venta: repetir método y escenario devuelve el estado actual;
+cambiarlos devuelve 409. La venta actúa como clave de idempotencia del pago.
+`APPROVED` y `DECLINED` son finales. `TIMEOUT` queda `UNKNOWN` y se consulta después.
+El simulador confirma ese timeout como aprobado; no procesa dinero real.
+
+El intento `PENDING` se guarda antes de llamar al proveedor. Si el proceso cae,
+el worker puede reenviarlo con la misma referencia: el simulador la deduplica en
+PostgreSQL. Para `UNKNOWN` solo consulta. Reintenta cada 5–60 segundos y conserva
+las comprobaciones; una respuesta incierta nunca se convierte en rechazo.
+
+La aprobación y el outbox comparten transacción. Un worker interno escucha avisos
+y revisa pendientes cada 2 segundos. Reprocesar envía una instantánea, no suma otra vez.
+Redis guarda el dashboard 30 segundos: una operación atómica impide retrocesos;
+`singleflight` agrupa reconstrucciones simultáneas. Sin Redis se consulta PostgreSQL.
+SSE comparte eventos por comercio, manda una instantánea al reconectar y termina
+al vencer el JWT. Se consume con `fetch` y Bearer, sin tokens en la URL.
+
+Límites: un proceso Go, días UTC, sin reembolso ni segundo intento tras rechazo.
+Proveedor real, login y revisión operativa de pagos irresueltos quedan fuera.
 
 ## Pruebas
 

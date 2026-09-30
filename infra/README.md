@@ -43,9 +43,9 @@ Puertos locales: API `8080`, PostgreSQL `5432`, Redis `6379`. Se cambian con
 ## Límites
 
 - PostgreSQL persiste en un volumen; `down` conserva datos, `down --volumes` los borra.
-- Redis es descartable y aún no lo consume Go. No tiene contraseña; configuración local.
+- Redis guarda el dashboard y es descartable. No tiene contraseña; configuración local.
 - La base es `movank`. El administrador `movank` aplica migraciones;
-  `movank_app` solo lee comercios y lee/crea productos, ventas y sus detalles.
+  `movank_app` usa permisos limitados por tabla y columna para las operaciones de la API.
 - Cambiar `POSTGRES_PASSWORD` en `.env` no modifica una base ya inicializada.
   Para cambiar `APP_DB_PASSWORD`, recrea los servicios y ejecuta las migraciones.
 - `healthy` comprueba el proceso Go; `/readyz` comprueba PostgreSQL.

@@ -20,6 +20,7 @@ var uuidPattern = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]
 type Principal struct {
 	UserID     string
 	MerchantID string
+	ExpiresAt  time.Time
 }
 
 type claims struct {
@@ -77,7 +78,7 @@ func (a *Authenticator) Verify(raw string) (Principal, error) {
 	if err != nil || !token.Valid {
 		return Principal{}, errors.New("invalid token")
 	}
-	return Principal{UserID: strings.ToLower(c.Subject), MerchantID: strings.ToLower(c.MerchantID)}, nil
+	return Principal{UserID: strings.ToLower(c.Subject), MerchantID: strings.ToLower(c.MerchantID), ExpiresAt: c.ExpiresAt.Time}, nil
 }
 
 type principalKey struct{}

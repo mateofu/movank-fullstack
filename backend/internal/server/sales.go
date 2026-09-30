@@ -20,7 +20,7 @@ type SaleRepository interface {
 	Get(context.Context, string, string) (sale.Sale, error)
 }
 
-func registerSales(mux *http.ServeMux, tokens *auth.Authenticator, getMerchant func(context.Context, string) (merchant.Merchant, error), sales SaleRepository) {
+func registerSales(mux *http.ServeMux, tokens *auth.Authenticator, getMerchant func(context.Context, string) (merchant.Merchant, error), sales SaleRepository, features ...Features) {
 	protect := func(next func(http.ResponseWriter, *http.Request, string)) http.Handler {
 		return tokens.Require(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			principal, ok := auth.FromContext(r.Context())
@@ -79,6 +79,18 @@ func registerSales(mux *http.ServeMux, tokens *auth.Authenticator, getMerchant f
 		result, err := sales.Get(r.Context(), merchantID, r.PathValue("id"))
 		if err != nil {
 			saleError(w, err)
+			return
+		}
+		if len(features) > 0 {
+			current, err := features[0].Payments.Current(r.Context(), merchantID, result.ID)
+			if err != nil {
+				saleError(w, err)
+				return
+			}
+			writeJSON(w, 200, struct {
+				sale.Sale
+				Payment any `json:"payment"`
+			}{result, current})
 			return
 		}
 		writeJSON(w, 200, result)

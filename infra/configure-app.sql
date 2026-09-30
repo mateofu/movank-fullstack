@@ -38,5 +38,9 @@ REVOKE ALL ON TABLE public.merchants FROM PUBLIC;
 GRANT SELECT ON TABLE public.merchants TO movank_app;
 GRANT SELECT, INSERT ON TABLE public.products TO movank_app;
 GRANT SELECT, INSERT ON TABLE public.sales, public.sale_items TO movank_app;
+GRANT SELECT, INSERT ON TABLE public.payments, public.provider_operations, public.payment_checks, public.outbox TO movank_app;
+GRANT UPDATE (status, attempts, last_error, next_check_at, updated_at, completed_at) ON public.payments TO movank_app;
+GRANT UPDATE (published_at) ON public.outbox TO movank_app;
+GRANT USAGE ON SEQUENCE public.payment_checks_id_seq, public.outbox_id_seq TO movank_app;
 
 COMMIT;

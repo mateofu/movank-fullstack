@@ -82,7 +82,13 @@ try {
     Assert-Value 'SELECT count(*) FROM public.schema_migrations;' '3'
     Assert-Value 'SELECT count(*) FROM public.sales;' '2'
     Assert-Value 'SELECT count(*) FROM public.sale_items;' '1'
-    Write-Output 'OK: rollback y reintentos de migraciones; restricciones, aislamiento y precios historicos de ventas.'
+    $payments = Get-Content -Raw -Encoding UTF8 'backend/migrations/004_payments.sql'
+    Invoke-SQL -Database $testDatabase -Query $payments.Replace('COMMIT;', "SELECT 1 / 0;`nCOMMIT;") -ExpectFailure
+    Assert-Value "SELECT to_regclass('public.payments') IS NULL AND to_regclass('public.outbox') IS NULL;" 't'
+    Invoke-SQL -Database $testDatabase -Query $payments | Out-Null
+    Invoke-SQL -Database $testDatabase -Query $payments | Out-Null
+    Assert-Value 'SELECT count(*) FROM public.schema_migrations;' '4'
+    Write-Output 'OK: rollback y reintentos de migraciones; restricciones, aislamiento, ventas y pagos.'
 }
 finally {
     try {

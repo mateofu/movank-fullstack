@@ -1,8 +1,8 @@
 openapi: 3.0.3
 info:
   title: Movank API
-  version: 0.4.0
-  description: Identidad, productos y ventas por comercio. Pagos pendientes.
+  version: 0.5.0
+  description: Productos, ventas, pagos simulados y dashboard por comercio. Importes en centavos de COP.
 servers:
   - url: http://localhost:8080
 paths:
@@ -298,6 +298,135 @@ paths:
           $ref: '#/components/responses/NotFound'
         '503':
           $ref: '#/components/responses/Unavailable'
+  /v1/sales/{id}/pay:
+    post:
+      summary: Pagar una venta con proveedor simulado
+      description: >-
+        Un intento por venta y comercio, sin requerir otra Idempotency-Key.
+        Repetir método y escenario devuelve el estado actual del mismo intento;
+        cambiarlos devuelve 409. La referencia se persiste antes de llamar al proveedor.
+        TIMEOUT produce UNKNOWN, nunca DECLINED. El worker consulta esa referencia
+        y el simulador permite verla como APPROVED después de 3 segundos.
+        Si la consulta falla, conserva UNKNOWN y registra cada comprobación.
+        Un PENDING interrumpido se reenvía con la misma referencia deduplicada.
+        No hay un segundo intento ni reembolsos. Ante 503, consultar la venta o
+        repetir exactamente el mismo pago: la confirmación puede haberse persistido.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [method, scenario]
+              properties:
+                method:
+                  type: string
+                  enum: [CARD]
+                scenario:
+                  type: string
+                  enum: [APPROVED, DECLINED, TIMEOUT]
+      responses:
+        '200':
+          description: Resultado definitivo, aprobado o rechazado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Payment'
+        '202':
+          description: PENDING o UNKNOWN, recuperado por el worker; consultar GET de la venta
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Payment'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Otro método o escenario ya registrado (payment_conflict)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductError'
+        '413':
+          $ref: '#/components/responses/BodyTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /v1/dashboard/today:
+    get:
+      summary: Agregado de pagos aprobados del día UTC
+      description: >-
+        Solo cuenta APPROVED por fecha de confirmación. Caché de 30 segundos,
+        actualizada por outbox y reconstruible desde PostgreSQL. Puede haber
+        un breve retraso respecto al pago. No admite parámetros de comercio.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Dashboard del comercio autenticado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Dashboard'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /v1/dashboard/stream:
+    get:
+      summary: Actualizaciones SSE del dashboard
+      description: >-
+        Usar fetch con Authorization Bearer; no se aceptan tokens ni comercios en URL.
+        Envía una instantánea inicial y eventos dashboard con el agregado completo,
+        id fecha:paid_sales y heartbeat cada 15 segundos. Al reconectar siempre
+        envía la instantánea actual; Last-Event-ID no solicita historial.
+        El cliente reemplaza el agregado, no suma eventos. Se cierra al vencer
+        el JWT, detener el servicio o bloquearse la escritura durante 5 segundos.
+        Límite local de 100 conexiones por comercio y 1000 en total.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Flujo SSE del comercio autenticado
+          content:
+            text/event-stream:
+              schema:
+                type: string
+              example: "id: 2026-09-30:1\nevent: dashboard\ndata: {\"date\":\"2026-09-30\",\"currency\":\"COP\",\"paid_sales\":1,\"total_minor\":20000}\n\n"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          description: Límite de conexiones SSE alcanzado (too_many_streams)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
 components:
   responses:
     BadRequest:
@@ -360,6 +489,66 @@ components:
       bearerFormat: JWT
       description: JWT HS256 con iss=movank-local, aud=movank-api, exp, iat, nbf, sub (UUID) y merchant_id (UUID).
   schemas:
+    Payment:
+      type: object
+      additionalProperties: false
+      required: [id, sale_id, method, scenario, status, amount_minor, checks, last_error, created_at, updated_at, completed_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Referencia persistente usada también ante el proveedor
+        sale_id:
+          type: string
+          format: uuid
+        method:
+          type: string
+          enum: [CARD]
+        scenario:
+          type: string
+          enum: [APPROVED, DECLINED, TIMEOUT]
+        status:
+          type: string
+          enum: [PENDING, UNKNOWN, APPROVED, DECLINED]
+        amount_minor:
+          type: integer
+          format: int64
+        checks:
+          type: integer
+          minimum: 0
+        last_error:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+    Dashboard:
+      type: object
+      additionalProperties: false
+      required: [date, currency, paid_sales, total_minor]
+      properties:
+        date:
+          type: string
+          format: date
+          description: Día UTC
+        currency:
+          type: string
+          enum: [COP]
+        paid_sales:
+          type: integer
+          format: int64
+          minimum: 0
+        total_minor:
+          type: integer
+          format: int64
+          minimum: 0
     SaleInput:
       type: object
       additionalProperties: false
@@ -387,6 +576,12 @@ components:
       additionalProperties: false
       required: [id, total_minor, currency, created_at, items]
       properties:
+        payment:
+          type: object
+          nullable: true
+          description: Solo en GET; null si aún no se ha iniciado un pago. POST conserva la respuesta de creación.
+          allOf:
+            - $ref: '#/components/schemas/Payment'
         id:
           type: string
           format: uuid
@@ -482,7 +677,7 @@ components:
       properties:
         error:
           type: string
-          enum: [invalid_query, invalid_request, invalid_json, invalid_product, invalid_sale, idempotency_conflict, body_too_large, unsupported_media_type, sku_conflict, not_found, unauthorized, forbidden, unavailable]
+          enum: [invalid_query, invalid_request, invalid_json, invalid_product, invalid_sale, invalid_payment, payment_conflict, too_many_streams, idempotency_conflict, body_too_large, unsupported_media_type, sku_conflict, not_found, unauthorized, forbidden, unavailable]
     AuthError:
       type: object
       additionalProperties: false
