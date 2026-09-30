@@ -5,12 +5,13 @@ Redis será una caché reconstruible. El backend alojará el worker de outbox y
 distribuirá actualizaciones del dashboard por SSE. La PWA persistirá en IndexedDB
 y sincronizará mediante un Web Worker.
 
-## Estado actual: etapa 1
+## Estado actual: etapa 2a
 
-Solo está creada la estructura inicial y documentado el alcance. Todavía no hay
-aplicación ejecutable, dependencias, contenedores, migraciones ni endpoints.
-No se presentan comandos de arranque como si ya funcionaran. Cada etapa añadirá
-sus comandos reales y verificaciones; el usuario revisa y realiza los commits.
+La estructura inicial y el entorno local PostgreSQL + Redis están preparados.
+Consulta [infraestructura](infra/README.md) para configurar `.env`, arrancar y
+verificar persistencia. Todavía no hay aplicación ejecutable, migraciones ni
+endpoints. El contenedor Go se añadirá cuando exista su ejecutable.
+El usuario revisa cada paso y realiza los commits.
 
 ```text
 backend/
@@ -40,8 +41,8 @@ Get-Content docs/requirements.md
 Get-Content docs/decisions/0001-project-boundaries.md
 ```
 
-Se verifica la organización y el alcance documental. No hay lógica sobre la que
-ejecutar tests todavía. Las herramientas temporales de lectura del PDF están
+La verificación de infraestructura está en `infra/verify.ps1`; todavía no hay
+lógica de negocio que probar. Las herramientas temporales de lectura del PDF están
 excluidas mediante `.scratch/` y no son dependencias del proyecto.
 
 Consulta [los requisitos](docs/requirements.md), [las decisiones iniciales](docs/decisions/0001-project-boundaries.md)

@@ -1,6 +1,8 @@
 # Plan de trabajo
 
-Solo la etapa 1 está completada. Cada paso termina para revisión del usuario antes
+La etapa 1 está completada. La etapa 2 se divide: 2a prepara y verifica PostgreSQL
+y Redis; el contenedor Go se integrará cuando exista el ejecutable.
+Cada paso termina para revisión del usuario antes
 de continuar. Las etapas grandes se dividirán en varios pasos equivalentes a commits.
 
 | Etapa | Entrega prevista | Verificación principal |
