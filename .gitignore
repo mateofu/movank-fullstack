@@ -1,0 +1,28 @@
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Go build and test outputs
+/backend/bin/
+*.test
+coverage.out
+coverage.html
+
+# SvelteKit / Node
+node_modules/
+.svelte-kit/
+/frontend/build/
+/frontend/dist/
+
+# Local infrastructure, tooling and test artifacts
+/.scratch/
+/tmp/
+/data/
+/test-results/
+/playwright-report/
+*.log
+.DS_Store
+Thumbs.db
