@@ -61,7 +61,7 @@ func TestProductRequestValidation(t *testing.T) {
 		stub := &productStub{}
 		handler := Handler(func(context.Context) error { return nil }, tokens, func(context.Context, string) (merchant.Merchant, error) {
 			return merchant.Merchant{ID: merchantID}, nil
-		}, stub)
+		}, stub, nil)
 		r := httptest.NewRequest(tc.method, tc.path, strings.NewReader(tc.body))
 		r.Header.Set("Authorization", "Bearer "+token)
 		r.Header.Set("Content-Type", tc.media)
@@ -84,7 +84,7 @@ func TestProductErrorsAndScope(t *testing.T) {
 		stub := &productStub{err: tc.err}
 		handler := Handler(func(context.Context) error { return nil }, tokens, func(context.Context, string) (merchant.Merchant, error) {
 			return merchant.Merchant{ID: scope}, nil
-		}, stub)
+		}, stub, nil)
 		r := httptest.NewRequest("POST", "/v1/products", strings.NewReader(`{"sku":"A","name":"Test","price_minor":100,"currency":"COP"}`))
 		r.Header.Set("Authorization", "Bearer "+token)
 		r.Header.Set("Content-Type", "application/json")

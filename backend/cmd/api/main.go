@@ -16,6 +16,7 @@ import (
 	"github.com/mateofu/movank-fullstack/backend/internal/database"
 	"github.com/mateofu/movank-fullstack/backend/internal/merchant"
 	"github.com/mateofu/movank-fullstack/backend/internal/product"
+	"github.com/mateofu/movank-fullstack/backend/internal/sale"
 	"github.com/mateofu/movank-fullstack/backend/internal/server"
 )
 
@@ -76,5 +77,5 @@ func run(logger *slog.Logger) error {
 	if err != nil {
 		return err
 	}
-	return server.Serve(ctx, listener, server.Handler(pool.Ping, tokens, merchants.Get, product.NewStore(pool)), logger)
+	return server.Serve(ctx, listener, server.Handler(pool.Ping, tokens, merchants.Get, product.NewStore(pool), sale.NewStore(pool)), logger)
 }

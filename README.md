@@ -2,8 +2,8 @@
 
 Prueba full stack con Go, PostgreSQL, Redis y SvelteKit.
 
-Implementado: autenticación JWT, productos por comercio y esquema de ventas.
-Pendiente: API de ventas, pagos, outbox, dashboard SSE y PWA offline.
+Implementado: autenticación JWT, productos y ventas con idempotencia por comercio.
+Pendiente: pagos, outbox, dashboard SSE y PWA offline.
 
 ## Ejecutar
 

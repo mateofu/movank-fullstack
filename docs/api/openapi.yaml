@@ -1,8 +1,8 @@
 openapi: 3.0.3
 info:
   title: Movank API
-  version: 0.3.0
-  description: Comprobaciones operativas, identidad y productos por comercio. Ventas pendientes.
+  version: 0.4.0
+  description: Identidad, productos y ventas por comercio. Pagos pendientes.
 servers:
   - url: http://localhost:8080
 paths:
@@ -210,6 +210,94 @@ paths:
                   status:
                     type: string
                     enum: [unavailable]
+  /v1/sales:
+    post:
+      summary: Crear una venta con idempotencia persistente
+      description: >-
+        Precios calculados desde el catálogo del comercio autenticado. Máximo 100
+        productos distintos y 16384 bytes de JSON. El orden de los productos y
+        las mayúsculas de UUID no cambian el pedido. Misma clave y pedido devuelve
+        la venta original con 201; distinto pedido devuelve 409. Los errores de
+        validación no reservan la clave. Ante timeout o 503, reintentar con la misma clave y pedido.
+        No procesa pagos. No se permite merchant_id ni precios en el cuerpo.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          required: true
+          description: Clave estable por operación y comercio; sin caducidad.
+          schema:
+            type: string
+            pattern: '^[A-Za-z0-9._:-]{1,128}$'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SaleInput'
+      responses:
+        '201':
+          description: Venta creada o repetición de la venta original
+          headers:
+            Location:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Sale'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          description: Clave ya utilizada con otro pedido (idempotency_conflict)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductError'
+        '413':
+          description: Cuerpo mayor a 16384 bytes (body_too_large)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductError'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /v1/sales/{id}:
+    get:
+      summary: Consultar una venta del comercio autenticado
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Venta con sus precios originales
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Sale'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '503':
+          $ref: '#/components/responses/Unavailable'
 components:
   responses:
     BadRequest:
@@ -236,7 +324,7 @@ components:
           schema:
             $ref: '#/components/schemas/ProductError'
     NotFound:
-      description: Producto no encontrado en el comercio autenticado
+      description: Recurso no encontrado en el comercio autenticado
       content:
         application/json:
           schema:
@@ -272,6 +360,72 @@ components:
       bearerFormat: JWT
       description: JWT HS256 con iss=movank-local, aud=movank-api, exp, iat, nbf, sub (UUID) y merchant_id (UUID).
   schemas:
+    SaleInput:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          minItems: 1
+          maxItems: 100
+          description: Cada producto debe aparecer una sola vez y pertenecer al comercio.
+          items:
+            type: object
+            additionalProperties: false
+            required: [product_id, quantity]
+            properties:
+              product_id:
+                type: string
+                format: uuid
+              quantity:
+                type: integer
+                minimum: 1
+                maximum: 10000
+    Sale:
+      type: object
+      additionalProperties: false
+      required: [id, total_minor, currency, created_at, items]
+      properties:
+        id:
+          type: string
+          format: uuid
+        total_minor:
+          type: integer
+          format: int64
+          minimum: 1
+          maximum: 1000000000000
+          description: Total en centavos de COP
+        currency:
+          type: string
+          enum: [COP]
+        created_at:
+          type: string
+          format: date-time
+        items:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items:
+            type: object
+            additionalProperties: false
+            required: [product_id, quantity, product_name, unit_price_minor, subtotal_minor]
+            properties:
+              product_id:
+                type: string
+                format: uuid
+              quantity:
+                type: integer
+                minimum: 1
+                maximum: 10000
+              product_name:
+                type: string
+              unit_price_minor:
+                type: integer
+                format: int64
+              subtotal_minor:
+                type: integer
+                format: int64
     ProductInput:
       type: object
       additionalProperties: false
@@ -328,7 +482,7 @@ components:
       properties:
         error:
           type: string
-          enum: [invalid_query, invalid_request, invalid_json, invalid_product, body_too_large, unsupported_media_type, sku_conflict, not_found, unauthorized, forbidden, unavailable]
+          enum: [invalid_query, invalid_request, invalid_json, invalid_product, invalid_sale, idempotency_conflict, body_too_large, unsupported_media_type, sku_conflict, not_found, unauthorized, forbidden, unavailable]
     AuthError:
       type: object
       additionalProperties: false

@@ -13,7 +13,7 @@ import (
 	"github.com/mateofu/movank-fullstack/backend/internal/merchant"
 )
 
-func Handler(checkDatabase func(context.Context) error, tokens *auth.Authenticator, getMerchant func(context.Context, string) (merchant.Merchant, error), products ProductRepository) http.Handler {
+func Handler(checkDatabase func(context.Context) error, tokens *auth.Authenticator, getMerchant func(context.Context, string) (merchant.Merchant, error), products ProductRepository, sales SaleRepository) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -60,6 +60,7 @@ func Handler(checkDatabase func(context.Context) error, tokens *auth.Authenticat
 		}{UserID: principal.UserID, Merchant: commerce})
 	})))
 	registerProducts(mux, tokens, getMerchant, products)
+	registerSales(mux, tokens, getMerchant, sales)
 	return mux
 }
 

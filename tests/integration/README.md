@@ -9,6 +9,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tests/integration/migrations
 powershell -NoProfile -ExecutionPolicy Bypass -File tests/integration/permissions.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File tests/integration/auth.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File tests/integration/products.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File tests/integration/sales.ps1
 ```
 
 - `verify`: persistencia de PostgreSQL y caché descartable; recrea contenedores.
@@ -18,5 +19,6 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tests/integration/products.p
 - `permissions`: permisos del usuario de aplicación.
 - `auth`: tokens y aislamiento entre comercios.
 - `products`: validación, paginación, aislamiento y SKU único bajo concurrencia.
+- `sales`: idempotencia, concurrencia, aislamiento y recuperación; reinicia Go.
 
 Las pruebas limpian sus datos temporales. Las HTTP aceptan `-BaseUrl` para otro puerto.

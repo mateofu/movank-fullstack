@@ -21,7 +21,7 @@ func testHandler(check func(context.Context) error) http.Handler {
 	tokens, _ := auth.New(strings.Repeat("ab", 32))
 	return Handler(check, tokens, func(context.Context, string) (merchant.Merchant, error) {
 		return merchant.Merchant{}, merchant.ErrNotFound
-	}, nil)
+	}, nil, nil)
 }
 
 func TestRoutes(t *testing.T) {
@@ -32,7 +32,7 @@ func TestRoutes(t *testing.T) {
 	}{
 		{"GET", "/healthz", 200},
 		{"POST", "/healthz", 405},
-		{"GET", "/v1/sales", 404},
+		{"GET", "/v1/sales", 405},
 	} {
 		rr := httptest.NewRecorder()
 		testHandler(func(context.Context) error { return nil }).ServeHTTP(rr, httptest.NewRequest(tc.method, tc.path, nil))

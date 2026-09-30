@@ -39,7 +39,7 @@ func TestIdentityUsesOnlyVerifiedMerchant(t *testing.T) {
 					t.Fatal("repository received untrusted merchant")
 				}
 				return merchant.Merchant{ID: id, Name: "Commerce A"}, tc.err
-			}, nil)
+			}, nil, nil)
 			r := httptest.NewRequest("GET", "/v1/me?merchant_id="+otherID, strings.NewReader(`{"merchant_id":"`+otherID+`"}`))
 			r.Header.Set("X-Merchant-ID", otherID)
 			if tc.token != "" {
@@ -71,7 +71,7 @@ func TestConcurrentIdentitiesRemainSeparate(t *testing.T) {
 	ids := []string{"11111111-1111-4111-8111-111111111111", "22222222-2222-4222-8222-222222222222"}
 	handler := Handler(func(context.Context) error { return nil }, tokens, func(ctx context.Context, id string) (merchant.Merchant, error) {
 		return merchant.Merchant{ID: id, Name: id}, nil
-	}, nil)
+	}, nil, nil)
 	var workers sync.WaitGroup
 	for i := 0; i < 20; i++ {
 		id := ids[i%2]

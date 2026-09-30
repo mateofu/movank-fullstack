@@ -37,5 +37,6 @@ REVOKE ALL ON TABLE public.schema_migrations FROM PUBLIC, movank_app;
 REVOKE ALL ON TABLE public.merchants FROM PUBLIC;
 GRANT SELECT ON TABLE public.merchants TO movank_app;
 GRANT SELECT, INSERT ON TABLE public.products TO movank_app;
+GRANT SELECT, INSERT ON TABLE public.sales, public.sale_items TO movank_app;
 
 COMMIT;

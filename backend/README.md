@@ -13,6 +13,8 @@ Arranque: [guía principal](../README.md). Contrato: [OpenAPI](../docs/api/opena
 - `POST /v1/products`: crear producto.
 - `GET /v1/products`: catálogo paginado.
 - `GET /v1/products/{id}`: consultar producto.
+- `POST /v1/sales`: crear venta; requiere `Idempotency-Key`.
+- `GET /v1/sales/{id}`: consultar venta.
 
 Las rutas `/v1` requieren JWT. El comercio viene del token verificado y las
 consultas filtran por él; no hay RLS. Los importes son enteros en centavos de COP.
@@ -35,13 +37,16 @@ renovación ni revocación individual. No guardes tokens en Git ni localStorage.
 
 ## Ventas y migraciones
 
-El esquema guarda clave única por comercio, hash de 32 bytes y detalle con nombre
-y precio históricos. Las relaciones impiden mezclar comercios. Aún faltan la API,
-la comparación del hash y los pagos; Go todavía no tiene permisos sobre ventas.
+Envía `{"items":[{"product_id":"UUID","quantity":2}]}` con una clave estable.
+Go obtiene precios del catálogo y guarda venta y detalle en una transacción.
+Admite 1–100 productos distintos, cantidades 1–10000 y total hasta 1000000000000 centavos.
 
-PostgreSQL calcula subtotales. La API deberá guardar todo en una transacción y
-validar que haya líneas y que su suma coincida con el total; el esquema no lo exige.
-Cantidad: 1–10000; importes: 1–1000000000000 centavos. Las claves no caducan.
+Un bloqueo transaccional por comercio y clave ordena los reintentos. El hash
+SHA-256 del pedido normalizado detecta cambios: misma clave y pedido devuelve
+la venta original con 201; otro pedido devuelve 409. Orden y mayúsculas de UUID
+no importan. Las claves no caducan y sobreviven reinicios; tras timeout o 503,
+repite la misma clave y pedido. Los errores de validación no reservan la clave.
+Los precios históricos no cambian. Los pagos siguen pendientes.
 
 Las migraciones son transaccionales, serializadas y repetibles. No se editan una
 vez aplicadas; las correcciones usan otra migración. No hay reversión automática.
