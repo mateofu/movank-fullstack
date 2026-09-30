@@ -1,7 +1,7 @@
-# Infraestructura local — etapa 2a
+# Infraestructura local — etapa 2b
 
-Este paso levanta PostgreSQL y Redis. El servicio Go se añadirá cuando exista su
-ejecutable. No hay API, tablas de negocio ni frontend todavía.
+Compose levanta PostgreSQL, Redis y el backend Go con `/healthz`. No hay tablas
+ni endpoints de negocio todavía. El backend aún no se conecta a los otros servicios.
 
 ## Requisitos y configuración
 
@@ -27,14 +27,16 @@ existente. Compose rechaza una contraseña vacía. `.env` está excluido de Git.
 
 ```powershell
 docker compose config --quiet
-docker compose up -d --wait --wait-timeout 120
+docker compose up -d --build --wait --wait-timeout 120
 docker compose ps
+Invoke-RestMethod http://127.0.0.1:8080/healthz
 docker compose exec -T postgres psql -U movank -d movank -v ON_ERROR_STOP=1 -c "SELECT current_database(), current_user;"
 docker compose exec -T redis redis-cli ping
 powershell -NoProfile -ExecutionPolicy Bypass -File infra/verify.ps1
 ```
 
-Se esperan servicios `healthy`, base/usuario `movank` y `PONG`. `pg_isready` mide
+Se esperan tres servicios `healthy`, respuesta `status: ok`, base/usuario `movank`
+y `PONG`. `pg_isready` mide
 disponibilidad; la consulta comprueba ejecución SQL, no futuras migraciones.
 Evita compartir `docker compose config` sin `--quiet`: muestra la contraseña.
 
@@ -48,11 +50,12 @@ la recreación: úsalo en este entorno de desarrollo.
 | Origen | PostgreSQL | Redis |
 | --- | --- | --- |
 | Tu equipo | `127.0.0.1:5432` | `127.0.0.1:6379` |
-| Futuro backend en Compose | `postgres:5432` | `redis:6379` |
+| Backend en Compose (conexión pendiente) | `postgres:5432` | `redis:6379` |
 
 Base y usuario: `movank`; contraseña: la de `.env`. Si un puerto está ocupado,
 cambia `POSTGRES_PORT` o `REDIS_PORT`; los puertos internos no cambian. Solo se
-publican en loopback, no en toda la red local.
+publican en loopback, no en toda la red local. `API_PORT` cambia el puerto publicado
+del backend (8080 por defecto); ajusta la URL de comprobación si lo cambias.
 
 ## Detener y recuperar
 

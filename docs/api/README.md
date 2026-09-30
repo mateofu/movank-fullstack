@@ -1,7 +1,11 @@
 # Contrato HTTP
 
-El documento OpenAPI se incorporará en la etapa 3 y evolucionará con cada endpoint.
-Definirá autenticación, esquemas, estados, errores, idempotencia y SSE. No se publica
-un contrato vacío que pueda confundirse con una API ya disponible.
+El contrato OpenAPI se añadirá al implementar la API. Documentará autenticación,
+esquemas, errores, idempotencia y SSE para estos endpoints:
 
-Los endpoints mínimos están enumerados en [los requisitos](../requirements.md).
+- `POST /v1/products`
+- `POST /v1/sales`
+- `POST /v1/sales/{id}/pay`
+- `GET /v1/sales/{id}`
+- `GET /v1/dashboard/today`
+- `GET /v1/dashboard/stream`

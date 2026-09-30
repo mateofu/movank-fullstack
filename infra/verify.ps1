@@ -21,7 +21,6 @@ try {
     $set = Invoke-Compose -ComposeArgs @('exec', '-T', 'redis', 'redis-cli', 'SET', $probe, '42', 'EX', '600')
     if (($set -join "`n").Trim() -ne 'OK') { throw 'Redis no confirmo la escritura.' }
 
-    # Recrear contenedores verifica el volumen, no solo memoria de un proceso vivo.
     Invoke-Compose -ComposeArgs @('up', '-d', '--force-recreate', '--wait', '--wait-timeout', '120', 'postgres', 'redis')
     $value = Invoke-Compose -ComposeArgs @('exec', '-T', 'postgres', 'psql', '-U', 'movank', '-d', 'movank', '-v', 'ON_ERROR_STOP=1', '-tAc', "SELECT value FROM $probe;")
     if (($value -join "`n").Trim() -ne '42') { throw 'PostgreSQL no conservo la fila.' }
