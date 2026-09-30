@@ -8,10 +8,21 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/mateofu/movank-fullstack/backend/internal/auth"
+	"github.com/mateofu/movank-fullstack/backend/internal/merchant"
 )
+
+func testHandler(check func(context.Context) error) http.Handler {
+	tokens, _ := auth.New(strings.Repeat("ab", 32))
+	return Handler(check, tokens, func(context.Context, string) (merchant.Merchant, error) {
+		return merchant.Merchant{}, merchant.ErrNotFound
+	})
+}
 
 func TestRoutes(t *testing.T) {
 	for _, tc := range []struct {
@@ -24,7 +35,7 @@ func TestRoutes(t *testing.T) {
 		{"GET", "/v1/sales", 404},
 	} {
 		rr := httptest.NewRecorder()
-		Handler(func(context.Context) error { return nil }).ServeHTTP(rr, httptest.NewRequest(tc.method, tc.path, nil))
+		testHandler(func(context.Context) error { return nil }).ServeHTTP(rr, httptest.NewRequest(tc.method, tc.path, nil))
 		if rr.Code != tc.status {
 			t.Fatalf("%s %s: got %d, want %d", tc.method, tc.path, rr.Code, tc.status)
 		}
@@ -47,7 +58,7 @@ func TestReadiness(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			rr := httptest.NewRecorder()
-			Handler(tc.check).ServeHTTP(rr, httptest.NewRequest("GET", "/readyz", nil))
+			testHandler(tc.check).ServeHTTP(rr, httptest.NewRequest("GET", "/readyz", nil))
 			if rr.Code != tc.status || rr.Body.String() != tc.body {
 				t.Fatalf("unexpected readiness response: %d %s", rr.Code, rr.Body.String())
 			}
@@ -59,7 +70,7 @@ func TestReadiness(t *testing.T) {
 }
 
 func TestLivenessDoesNotQueryDatabase(t *testing.T) {
-	handler := Handler(func(context.Context) error {
+	handler := testHandler(func(context.Context) error {
 		t.Fatal("liveness called database")
 		return nil
 	})

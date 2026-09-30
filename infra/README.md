@@ -1,8 +1,8 @@
 # Infraestructura local
 
 Compose levanta PostgreSQL, Redis y el backend Go con `/healthz` y `/readyz`.
-Go se conecta a PostgreSQL. La primera migración crea comercios; no hay endpoints
-de negocio todavía.
+Go se conecta a PostgreSQL. La primera migración crea comercios y `/v1/me` permite
+consultar la identidad del token. Productos y ventas siguen pendientes.
 
 ## Requisitos y configuración
 
@@ -25,6 +25,21 @@ Una cadena aleatoria
 alfanumérica evita problemas de interpolación dotenv. No sobrescribas un `.env`
 existente. Compose rechaza una contraseña vacía. `.env` está excluido de Git.
 Si ya tenías `.env`, agrega `APP_DB_PASSWORD` sin sobrescribir los demás valores.
+Agrega también `AUTH_SIGNING_KEY`: al menos 32 bytes aleatorios codificados en
+hexadecimal (64 caracteres como mínimo), distintos de las contraseñas. Para
+generarla en PowerShell y pegarla en `.env`:
+
+```powershell
+$bytes = New-Object byte[] 32
+$rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+$rng.GetBytes($bytes)
+$rng.Dispose()
+[BitConverter]::ToString($bytes).Replace('-', '').ToLowerInvariant()
+```
+
+La clave permite firmar tokens; no se comparte ni se guarda en el frontend.
+Cambiarla y recrear el backend invalida los tokens anteriores. El backend rechaza
+claves vacías, no hexadecimales o menores de 32 bytes.
 
 ## Arrancar y comprobar
 

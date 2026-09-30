@@ -1,11 +1,64 @@
 openapi: 3.0.3
 info:
   title: Movank API
-  version: 0.1.0
-  description: Comprobaciones operativas. Los endpoints de negocio están pendientes.
+  version: 0.2.0
+  description: Comprobaciones operativas e identidad autenticada. Productos y ventas están pendientes.
 servers:
   - url: http://localhost:8080
 paths:
+  /v1/me:
+    get:
+      operationId: currentIdentity
+      summary: Consulta la identidad y el comercio del token verificado
+      description: El comercio se obtiene de merchant_id en el JWT, nunca del cuerpo, query ni encabezados personalizados.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Identidad autenticada y comercio existente
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [user_id, merchant]
+                properties:
+                  user_id:
+                    type: string
+                    format: uuid
+                  merchant:
+                    type: object
+                    additionalProperties: false
+                    required: [id, name]
+                    properties:
+                      id:
+                        type: string
+                        format: uuid
+                      name:
+                        type: string
+        '401':
+          description: Token ausente, inválido o vencido
+          headers:
+            WWW-Authenticate:
+              schema:
+                type: string
+                enum: [Bearer]
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthError'
+        '403':
+          description: El comercio del token ya no existe
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthError'
+        '503':
+          description: No se pudo consultar el comercio
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthError'
   /healthz:
     get:
       operationId: health
@@ -42,7 +95,21 @@ paths:
                     type: string
                     enum: [unavailable]
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT HS256 con iss=movank-local, aud=movank-api, exp, iat, nbf, sub (UUID) y merchant_id (UUID).
   schemas:
+    AuthError:
+      type: object
+      additionalProperties: false
+      required: [error]
+      properties:
+        error:
+          type: string
+          enum: [unauthorized, forbidden, unavailable]
     Healthy:
       type: object
       additionalProperties: false

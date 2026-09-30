@@ -2,14 +2,18 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"net"
 	"net/http"
 	"time"
+
+	"github.com/mateofu/movank-fullstack/backend/internal/auth"
+	"github.com/mateofu/movank-fullstack/backend/internal/merchant"
 )
 
-func Handler(checkDatabase func(context.Context) error) http.Handler {
+func Handler(checkDatabase func(context.Context) error, tokens *auth.Authenticator, getMerchant func(context.Context, string) (merchant.Merchant, error)) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -28,6 +32,33 @@ func Handler(checkDatabase func(context.Context) error) http.Handler {
 		}
 		_, _ = w.Write([]byte("{\"status\":\"ok\"}\n"))
 	})
+	mux.Handle("GET /v1/me", tokens.Require(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Cache-Control", "no-store")
+		principal, ok := auth.FromContext(r.Context())
+		if !ok {
+			w.WriteHeader(http.StatusUnauthorized)
+			_, _ = w.Write([]byte("{\"error\":\"unauthorized\"}\n"))
+			return
+		}
+		ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+		defer cancel()
+		commerce, err := getMerchant(ctx, principal.MerchantID)
+		if errors.Is(err, merchant.ErrNotFound) {
+			w.WriteHeader(http.StatusForbidden)
+			_, _ = w.Write([]byte("{\"error\":\"forbidden\"}\n"))
+			return
+		}
+		if err != nil {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			_, _ = w.Write([]byte("{\"error\":\"unavailable\"}\n"))
+			return
+		}
+		_ = json.NewEncoder(w).Encode(struct {
+			UserID   string            `json:"user_id"`
+			Merchant merchant.Merchant `json:"merchant"`
+		}{UserID: principal.UserID, Merchant: commerce})
+	})))
 	return mux
 }
 

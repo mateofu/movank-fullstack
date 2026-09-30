@@ -9,8 +9,9 @@ y sincronizará mediante un Web Worker.
 
 El entorno local incluye PostgreSQL, Redis y el servicio Go conectado a PostgreSQL.
 Consulta [infraestructura](infra/README.md) para configurar `.env`, arrancar y
-verificar persistencia. El backend expone `GET /healthz` y `GET /readyz`. La primera
-migración crea la tabla de comercios; no hay endpoints de negocio. Consulta [backend](backend/README.md)
+verificar persistencia. El backend expone `GET /healthz`, `GET /readyz` y la ruta
+protegida `GET /v1/me`. La primera migración crea comercios; productos y ventas
+siguen pendientes. Consulta [backend](backend/README.md)
 para ejecución, configuración y pruebas.
 
 ```text
@@ -47,6 +48,7 @@ reiniciar Go. `/healthz` indica que el proceso responde; `/readyz`, que la base 
 la primera migración en una base temporal.
 `tests/integration/permissions.ps1` comprueba los permisos del usuario `movank_app`.
 Go usa ese usuario limitado; el administrador `movank` queda para migraciones.
+`tests/integration/auth.ps1` comprueba tokens y separación de comercios en `/v1/me`.
 
 ## Decisiones para las siguientes funcionalidades
 

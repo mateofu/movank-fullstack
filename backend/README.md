@@ -22,8 +22,8 @@ docker compose logs backend
 ```
 
 `GET /healthz` devuelve HTTP 200 con `{"status":"ok"}`. Es una comprobación de
-vida del proceso, no de disponibilidad de PostgreSQL ni Redis. No hay endpoints
-de negocio ni autenticación todavía.
+vida del proceso, no de disponibilidad de PostgreSQL ni Redis. Productos y ventas
+siguen pendientes.
 
 `GET /readyz` consulta PostgreSQL: devuelve 200 con `{"status":"ok"}` si responde
 y 503 con `{"status":"unavailable"}` si falla o tarda más de un segundo.
@@ -45,6 +45,48 @@ Go usa `movank_app`, con contraseña propia (`APP_DB_PASSWORD`) y solo lectura d
 El usuario `movank` queda para administración y migraciones locales. Los permisos
 de escritura se concederán por tabla cuando se implemente cada funcionalidad.
 Esto separa responsabilidades, pero todavía no aísla filas entre comercios.
+
+## Autenticación
+
+`GET /v1/me` requiere `Authorization: Bearer TOKEN`. El JWT se verifica con
+`golang-jwt/jwt`: HS256, emisor `movank-local`, destinatario `movank-api`, caducidad,
+fecha de emisión y fecha de activación. `sub` identifica al usuario y `merchant_id`
+al comercio, ambos con formato UUID. `AUTH_SIGNING_KEY` se configura según la
+[guía de infraestructura](../infra/README.md).
+
+La identidad verificada se guarda en el contexto de cada solicitud. El repositorio
+consulta `merchants WHERE id = $1` con ese comercio. No toma el comercio del cuerpo,
+la URL ni encabezados personalizados. Devuelve 401 si el token falla, 403 si el
+comercio no existe y 503 si PostgreSQL no puede responder. No publica errores internos.
+
+Para desarrollo, el operador puede crear un comercio y emitir un token de 15 minutos:
+
+```powershell
+$merchantId = [Guid]::NewGuid().ToString()
+$userId = [Guid]::NewGuid().ToString()
+docker compose exec -T postgres psql -U movank -d movank -v ON_ERROR_STOP=1 -c "INSERT INTO public.merchants (id, name) VALUES ('$merchantId', 'Demo');"
+$token = docker compose exec -T backend /api token $merchantId $userId
+Invoke-RestMethod http://127.0.0.1:8080/v1/me -Headers @{ Authorization = "Bearer $token" }
+```
+
+El comando `token` requiere acceso al contenedor, comprueba que el comercio existe
+y escribe el token en stdout. No hay una ruta pública para emitir tokens. No los
+guardes en archivos versionados, logs o localStorage.
+
+Este emisor es local: el operador asigna el UUID del usuario; todavía no existe
+registro de usuarios, login, renovación ni revocación individual de tokens. El
+frontend tendrá su flujo de sesión con cookie HttpOnly. La firma acredita lo
+emitido por el operador, no verifica credenciales de usuario. Esta etapa comprueba
+aislamiento únicamente para la consulta `/v1/me`; productos, ventas y SSE deberán
+aplicar el mismo ámbito al implementarse.
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File tests/integration/auth.ps1
+```
+
+La prueba crea dos comercios temporales, emite sus tokens y verifica que parámetros
+manipulados no cambien de comercio. También rechaza tokens inválidos y un token cuyo
+comercio se eliminó. Borra únicamente sus comercios de prueba al terminar.
 
 ## Migraciones
 

@@ -6,6 +6,7 @@ services:
       context: ./backend
     environment:
       HTTP_PORT: "8080"
+      AUTH_SIGNING_KEY: ${AUTH_SIGNING_KEY:?Configura AUTH_SIGNING_KEY en .env}
       PGHOST: postgres
       PGPORT: "5432"
       PGDATABASE: movank

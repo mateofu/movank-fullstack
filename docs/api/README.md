@@ -1,7 +1,7 @@
 # Contrato HTTP
 
-El [contrato OpenAPI](openapi.yaml) describe `/healthz` y `/readyz`.
-Se ampliará al implementar autenticación, esquemas, errores, idempotencia y SSE
+El [contrato OpenAPI](openapi.yaml) describe `/healthz`, `/readyz` y `/v1/me`.
+Se ampliará al implementar esquemas, errores, idempotencia y SSE
 para estos endpoints pendientes:
 
 - `POST /v1/products`

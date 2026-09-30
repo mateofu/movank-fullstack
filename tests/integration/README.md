@@ -13,6 +13,7 @@ Desde la raíz del proyecto:
 powershell -NoProfile -ExecutionPolicy Bypass -File tests/integration/database.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File tests/integration/migrations.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File tests/integration/permissions.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File tests/integration/auth.ps1
 ```
 
 La primera comprueba caída y recuperación de PostgreSQL. La segunda comprueba
@@ -20,3 +21,5 @@ migraciones en una base temporal: rollback ante fallos, ejecuciones concurrentes
 reintentos sin pérdida de datos y restricciones de comercios.
 La tercera requiere haber ejecutado `infra/migrate.ps1`: autentica por TCP como
 `movank_app` y comprueba que pueda leer comercios pero no modificar datos ni esquema.
+La cuarta verifica autenticación y separación de dos comercios con tokens reales.
+Las pruebas HTTP aceptan `-BaseUrl` si cambiaste el puerto de la API.
