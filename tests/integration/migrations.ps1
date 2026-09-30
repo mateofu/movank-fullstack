@@ -72,7 +72,17 @@ try {
     Assert-Value 'SELECT count(*) FROM public.schema_migrations;' '2'
     Invoke-SQL -Database $testDatabase -Query "INSERT INTO public.products (merchant_id, sku, name, price_minor, currency) VALUES ('00000000-0000-0000-0000-000000000001', 'BAD', 'Bad price', -1, 'COP');" -ExpectFailure
     Invoke-SQL -Database $testDatabase -Query "INSERT INTO public.products (merchant_id, sku, name, price_minor, currency) VALUES ('00000000-0000-0000-0000-000000000002', 'BAD', 'Missing merchant', 100, 'COP');" -ExpectFailure
-    Write-Output 'OK: rollback, concurrencia y reintentos de migraciones; restricciones de comercios y productos.'
+    $sales = Get-Content -Raw -Encoding UTF8 'backend/migrations/003_sales.sql'
+    Invoke-SQL -Database $testDatabase -Query $sales.Replace('COMMIT;', "SELECT 1 / 0;`nCOMMIT;") -ExpectFailure
+    Assert-Value "SELECT to_regclass('public.sales') IS NULL AND to_regclass('public.sale_items') IS NULL;" 't'
+    Assert-Value 'SELECT count(*) FROM public.schema_migrations;' '2'
+    Invoke-SQL -Database $testDatabase -Query $sales | Out-Null
+    Invoke-SQL -Database $testDatabase -Query (Get-Content -Raw -Encoding UTF8 'tests/integration/sales-schema.sql') | Out-Null
+    Invoke-SQL -Database $testDatabase -Query $sales | Out-Null
+    Assert-Value 'SELECT count(*) FROM public.schema_migrations;' '3'
+    Assert-Value 'SELECT count(*) FROM public.sales;' '2'
+    Assert-Value 'SELECT count(*) FROM public.sale_items;' '1'
+    Write-Output 'OK: rollback y reintentos de migraciones; restricciones, aislamiento y precios historicos de ventas.'
 }
 finally {
     try {

@@ -1,15 +1,9 @@
 # Pruebas de integración
 
-Aquí vivirán las pruebas que necesiten componentes reales o recorran la aplicación
-completa. Las pruebas unitarias de Go vivirán junto a sus paquetes; las del frontend,
-junto a su código.
-
-Se probarán solicitudes concurrentes, reintentos, recuperación tras reinicios,
-pagos inciertos, Redis caído, aislamiento entre comercios y sincronización offline.
-
-Desde la raíz del proyecto:
+Requieren Docker y las [migraciones aplicadas](../../README.md). Desde la raíz:
 
 ```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File infra/verify.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File tests/integration/database.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File tests/integration/migrations.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File tests/integration/permissions.ps1
@@ -17,12 +11,12 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tests/integration/auth.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File tests/integration/products.ps1
 ```
 
-La primera comprueba caída y recuperación de PostgreSQL. La segunda comprueba
-migraciones en una base temporal: rollback ante fallos, ejecuciones concurrentes,
-reintentos sin pérdida de datos y restricciones de comercios.
-La tercera requiere haber ejecutado `infra/migrate.ps1`: autentica por TCP como
-`movank_app` y comprueba que pueda leer comercios pero no modificar datos ni esquema.
-La cuarta verifica autenticación y separación de dos comercios con tokens reales.
-Las pruebas HTTP aceptan `-BaseUrl` si cambiaste el puerto de la API.
-La prueba de productos comprueba acceso cruzado por UUID, paginación, validación y
-creaciones concurrentes de un SKU. Elimina solo sus productos y comercios temporales.
+- `verify`: persistencia de PostgreSQL y caché descartable; recrea contenedores.
+- `database`: caída y recuperación de PostgreSQL; lo detiene temporalmente.
+- `migrations`: rollback, concurrencia, reintentos y restricciones en una base temporal;
+  incluye aislamiento y precios históricos de ventas mediante `sales-schema.sql`.
+- `permissions`: permisos del usuario de aplicación.
+- `auth`: tokens y aislamiento entre comercios.
+- `products`: validación, paginación, aislamiento y SKU único bajo concurrencia.
+
+Las pruebas limpian sus datos temporales. Las HTTP aceptan `-BaseUrl` para otro puerto.
