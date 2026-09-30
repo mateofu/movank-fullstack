@@ -6,6 +6,12 @@ services:
       context: ./backend
     environment:
       HTTP_PORT: "8080"
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGDATABASE: movank
+      PGUSER: movank
+      PGPASSWORD: ${POSTGRES_PASSWORD:?Crea .env con POSTGRES_PASSWORD antes de iniciar}
+      PGSSLMODE: disable
     ports:
       - "127.0.0.1:${API_PORT:-8080}:8080"
     healthcheck:

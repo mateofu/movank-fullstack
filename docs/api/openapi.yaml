@@ -1,0 +1,53 @@
+openapi: 3.0.3
+info:
+  title: Movank API
+  version: 0.1.0
+  description: Comprobaciones operativas. Los endpoints de negocio están pendientes.
+servers:
+  - url: http://localhost:8080
+paths:
+  /healthz:
+    get:
+      operationId: health
+      summary: Comprueba que el proceso HTTP responde
+      responses:
+        '200':
+          description: Proceso activo, independientemente de PostgreSQL y Redis
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Healthy'
+  /readyz:
+    get:
+      operationId: readiness
+      summary: Comprueba conectividad con PostgreSQL con un plazo de un segundo
+      description: No verifica migraciones ni Redis. La respuesta no incluye detalles de conexión.
+      responses:
+        '200':
+          description: PostgreSQL responde
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Healthy'
+        '503':
+          description: PostgreSQL no responde o se agotó el plazo
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [status]
+                properties:
+                  status:
+                    type: string
+                    enum: [unavailable]
+components:
+  schemas:
+    Healthy:
+      type: object
+      additionalProperties: false
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [ok]

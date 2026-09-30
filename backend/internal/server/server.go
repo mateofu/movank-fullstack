@@ -9,11 +9,23 @@ import (
 	"time"
 )
 
-func Handler() http.Handler {
+func Handler(checkDatabase func(context.Context) error) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Cache-Control", "no-store")
+		_, _ = w.Write([]byte("{\"status\":\"ok\"}\n"))
+	})
+	mux.HandleFunc("GET /readyz", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Cache-Control", "no-store")
+		ctx, cancel := context.WithTimeout(r.Context(), time.Second)
+		defer cancel()
+		if checkDatabase(ctx) != nil {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			_, _ = w.Write([]byte("{\"status\":\"unavailable\"}\n"))
+			return
+		}
 		_, _ = w.Write([]byte("{\"status\":\"ok\"}\n"))
 	})
 	return mux

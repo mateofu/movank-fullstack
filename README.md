@@ -7,9 +7,9 @@ y sincronizará mediante un Web Worker.
 
 ## Estado actual
 
-El entorno local incluye PostgreSQL, Redis y el arranque mínimo del servicio Go.
+El entorno local incluye PostgreSQL, Redis y el servicio Go conectado a PostgreSQL.
 Consulta [infraestructura](infra/README.md) para configurar `.env`, arrancar y
-verificar persistencia. El backend expone `GET /healthz`; todavía no hay
+verificar persistencia. El backend expone `GET /healthz` y `GET /readyz`; todavía no hay
 migraciones ni endpoints de negocio. Consulta [backend](backend/README.md)
 para ejecución, configuración y pruebas.
 
@@ -23,7 +23,7 @@ frontend/
   static/          Recursos públicos e instalación PWA
 infra/             Configuración de contenedores y desarrollo
 docs/
-  api/             Contrato OpenAPI, a incorporar con la API
+  api/             Contrato OpenAPI
 tests/integration/ Pruebas entre componentes reales
 ```
 
@@ -35,10 +35,13 @@ Después, desde la raíz:
 ```powershell
 docker compose up -d --build --wait
 Invoke-RestMethod http://127.0.0.1:8080/healthz
+Invoke-RestMethod http://127.0.0.1:8080/readyz
 ```
 
 La respuesta esperada es `status: ok`. La construcción ejecuta las pruebas de Go.
 `infra/verify.ps1` comprueba persistencia de PostgreSQL y caché descartable en Redis.
+`tests/integration/database.ps1` comprueba caída y recuperación de PostgreSQL sin
+reiniciar Go. `/healthz` indica que el proceso responde; `/readyz`, que la base responde.
 
 ## Decisiones para las siguientes funcionalidades
 
@@ -66,4 +69,5 @@ Estas reglas guiarán la implementación; todavía no hay lógica de negocio:
   catálogo. Después deberá abrir y operar offline, sin depender de SSR.
 
 Las pruebas acompañarán cada funcionalidad: concurrencia, reintentos, recuperación
-tras fallos y aislamiento entre comercios. El contrato OpenAPI se añadirá con la API.
+tras fallos y aislamiento entre comercios. El [contrato OpenAPI](docs/api/openapi.yaml)
+se ampliará con cada endpoint.

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/mateofu/movank-fullstack/backend/internal/config"
+	"github.com/mateofu/movank-fullstack/backend/internal/database"
 	"github.com/mateofu/movank-fullstack/backend/internal/server"
 )
 
@@ -45,9 +46,14 @@ func run(logger *slog.Logger) error {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	pool, err := database.Open(ctx)
+	if err != nil {
+		return err
+	}
+	defer pool.Close()
 	listener, err := net.Listen("tcp", ":"+cfg.HTTPPort)
 	if err != nil {
 		return err
 	}
-	return server.Serve(ctx, listener, server.Handler(), logger)
+	return server.Serve(ctx, listener, server.Handler(pool.Ping), logger)
 }

@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"io"
 	"log/slog"
 	"net"
@@ -23,13 +24,49 @@ func TestRoutes(t *testing.T) {
 		{"GET", "/v1/sales", 404},
 	} {
 		rr := httptest.NewRecorder()
-		Handler().ServeHTTP(rr, httptest.NewRequest(tc.method, tc.path, nil))
+		Handler(func(context.Context) error { return nil }).ServeHTTP(rr, httptest.NewRequest(tc.method, tc.path, nil))
 		if rr.Code != tc.status {
 			t.Fatalf("%s %s: got %d, want %d", tc.method, tc.path, rr.Code, tc.status)
 		}
 		if tc.status == 200 && rr.Body.String() != "{\"status\":\"ok\"}\n" {
 			t.Fatalf("unexpected health response: %s", rr.Body.String())
 		}
+	}
+}
+
+func TestReadiness(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		check  func(context.Context) error
+		status int
+		body   string
+	}{
+		{"available", func(context.Context) error { return nil }, 200, "{\"status\":\"ok\"}\n"},
+		{"unavailable", func(context.Context) error { return errors.New("private connection details") }, 503, "{\"status\":\"unavailable\"}\n"},
+		{"timeout", func(ctx context.Context) error { <-ctx.Done(); return ctx.Err() }, 503, "{\"status\":\"unavailable\"}\n"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			rr := httptest.NewRecorder()
+			Handler(tc.check).ServeHTTP(rr, httptest.NewRequest("GET", "/readyz", nil))
+			if rr.Code != tc.status || rr.Body.String() != tc.body {
+				t.Fatalf("unexpected readiness response: %d %s", rr.Code, rr.Body.String())
+			}
+			if rr.Header().Get("Cache-Control") != "no-store" {
+				t.Fatal("readiness must not be cached")
+			}
+		})
+	}
+}
+
+func TestLivenessDoesNotQueryDatabase(t *testing.T) {
+	handler := Handler(func(context.Context) error {
+		t.Fatal("liveness called database")
+		return nil
+	})
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, httptest.NewRequest("GET", "/healthz", nil))
+	if rr.Code != http.StatusOK {
+		t.Fatalf("unexpected liveness status: %d", rr.Code)
 	}
 }
 

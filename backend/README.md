@@ -1,6 +1,6 @@
 # Backend Go
 
-El servicio usa Go 1.26 y únicamente la biblioteca estándar en esta etapa.
+El servicio usa Go 1.26 y pgx para conectarse a PostgreSQL.
 Docker compila con Go 1.26.8 y ejecuta un binario estático como usuario sin privilegios.
 
 - `cmd/api/`: ensamblaje y arranque del único servicio. El worker de outbox vivirá
@@ -16,12 +16,31 @@ Desde la raíz, con el `.env` preparado según [infraestructura](../infra/README
 ```powershell
 docker compose up -d --build --wait --wait-timeout 120
 Invoke-RestMethod http://127.0.0.1:8080/healthz
+Invoke-RestMethod http://127.0.0.1:8080/readyz
 docker compose logs backend
 ```
 
 `GET /healthz` devuelve HTTP 200 con `{"status":"ok"}`. Es una comprobación de
 vida del proceso, no de disponibilidad de PostgreSQL ni Redis. No hay endpoints
-de negocio, autenticación o conexiones a datos todavía.
+de negocio ni autenticación todavía.
+
+`GET /readyz` consulta PostgreSQL: devuelve 200 con `{"status":"ok"}` si responde
+y 503 con `{"status":"unavailable"}` si falla o tarda más de un segundo.
+No verifica tablas ni migraciones. Ambas rutas son públicas y no exponen errores
+internos. El contrato está en [OpenAPI](../docs/api/openapi.yaml).
+
+Compose proporciona `PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER`, `PGPASSWORD` y
+`PGSSLMODE`. El puerto es opcional para pgx (5432); las otras variables son
+obligatorias. En local se usa `PGSSLMODE=disable` dentro de Docker; un despliegue
+remoto debe configurar TLS y sus certificados.
+
+El pool abre conexiones según se necesitan, con un máximo de 10 y un plazo de
+conexión de 3 segundos. La comprobación HTTP impone su límite más corto de un
+segundo. Si PostgreSQL cae, Go permanece activo y el pool puede reconectar cuando
+vuelva. El pool se cierra después de detener el servidor HTTP.
+
+Temporalmente se usa el usuario de desarrollo de PostgreSQL. Antes de incorporar
+operaciones de negocio se separarán los permisos de aplicación y migraciones.
 
 `HTTP_PORT` configura el puerto del proceso (8080 por defecto). Compose fija el
 interno en 8080 y permite cambiar el publicado mediante `API_PORT` en `.env`.
@@ -47,16 +66,29 @@ Con Go 1.26 instalado, desde `backend/` también se puede ejecutar:
 ```powershell
 go test ./...
 go vet ./...
-go run ./cmd/api
 ```
 
-Las pruebas cubren configuración inválida, rutas y cierre con una solicitud en
-curso. El detector de carreras se ejecuta en Linux dentro del build, con el
+Para `go run ./cmd/api`, exporta primero las variables `PG*` anteriores apuntando
+a `127.0.0.1` y al puerto publicado de PostgreSQL. Go no lee `.env` automáticamente.
+
+Las pruebas cubren configuración inválida, rutas, errores de PostgreSQL, timeout
+y cierre con una solicitud en curso. El detector de carreras se ejecuta dentro del build, con el
 compilador C disponible en la imagen de construcción. No se requiere instalar Go
-en Windows. No hay `go.sum` porque aún no existen dependencias externas.
+en Windows. `go.mod` y `go.sum` fijan las dependencias.
+
+Para comprobar caída y recuperación con PostgreSQL real, desde la raíz:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File tests/integration/database.ps1
+```
+
+La prueba detiene PostgreSQL temporalmente, comprueba `/healthz` 200 y `/readyz`
+503, lo levanta de nuevo y verifica recuperación sin reiniciar el backend. No
+borra datos. Si cambiaste `API_PORT`, pasa `-BaseUrl http://127.0.0.1:TU_PUERTO`.
 
 La imagen final no incluye shell ni compilador. `/api healthcheck` permite que
 Docker compruebe el servidor sin instalar utilidades adicionales. El sistema de
 archivos es de solo lectura y el contexto de build excluye archivos ajenos al código.
 
 Referencia de la herramienta: [distribuciones oficiales de Go](https://go.dev/dl/).
+Driver: [pgxpool](https://pkg.go.dev/github.com/jackc/pgx/v5/pgxpool).

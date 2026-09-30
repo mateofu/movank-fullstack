@@ -1,7 +1,7 @@
 # Infraestructura local — etapa 2b
 
-Compose levanta PostgreSQL, Redis y el backend Go con `/healthz`. No hay tablas
-ni endpoints de negocio todavía. El backend aún no se conecta a los otros servicios.
+Compose levanta PostgreSQL, Redis y el backend Go con `/healthz` y `/readyz`.
+Go se conecta a PostgreSQL; no hay tablas ni endpoints de negocio todavía.
 
 ## Requisitos y configuración
 
@@ -30,6 +30,7 @@ docker compose config --quiet
 docker compose up -d --build --wait --wait-timeout 120
 docker compose ps
 Invoke-RestMethod http://127.0.0.1:8080/healthz
+Invoke-RestMethod http://127.0.0.1:8080/readyz
 docker compose exec -T postgres psql -U movank -d movank -v ON_ERROR_STOP=1 -c "SELECT current_database(), current_user;"
 docker compose exec -T redis redis-cli ping
 powershell -NoProfile -ExecutionPolicy Bypass -File infra/verify.ps1
@@ -50,7 +51,7 @@ la recreación: úsalo en este entorno de desarrollo.
 | Origen | PostgreSQL | Redis |
 | --- | --- | --- |
 | Tu equipo | `127.0.0.1:5432` | `127.0.0.1:6379` |
-| Backend en Compose (conexión pendiente) | `postgres:5432` | `redis:6379` |
+| Backend en Compose | `postgres:5432` | `redis:6379` (pendiente) |
 
 Base y usuario: `movank`; contraseña: la de `.env`. Si un puerto está ocupado,
 cambia `POSTGRES_PORT` o `REDIS_PORT`; los puertos internos no cambian. Solo se
@@ -76,10 +77,16 @@ inicializada; las variables de la imagen se aplican en la primera inicializació
   tiene un límite de 64 MB y expulsa claves por LRU al alcanzarlo.
 - Redis no usa contraseña en este entorno local. Loopback y la red Docker limitan
   acceso; esta configuración no es para producción.
-- El usuario PostgreSQL inicial es administrador. Los permisos del usuario de la
-  aplicación se resolverán con las migraciones antes de conectar el negocio.
+- El usuario PostgreSQL inicial es administrador y se usa temporalmente para
+  comprobar conectividad. Los permisos de aplicación se separarán con las
+  migraciones antes de incorporar operaciones de negocio.
 - PostgreSQL y Redis arrancan independientemente. La futura API deberá tolerar
   Redis caído. La reconstrucción del dashboard se probará en la etapa 7.
+
+El healthcheck del contenedor Go usa `/healthz`. Que Docker indique `healthy` no
+garantiza disponibilidad de la base: comprueba `/readyz` para eso. No se exige que
+PostgreSQL esté listo antes de arrancar Go; la recuperación se comprueba con
+`tests/integration/database.ps1`.
 
 Referencias: [imagen PostgreSQL](https://hub.docker.com/_/postgres),
 [imagen Redis](https://hub.docker.com/_/redis),
