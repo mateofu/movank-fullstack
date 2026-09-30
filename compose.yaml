@@ -37,6 +37,7 @@ services:
       - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./backend/migrations:/migrations:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U movank -d movank"]
       interval: 5s

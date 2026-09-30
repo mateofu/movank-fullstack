@@ -42,6 +42,42 @@ vuelva. El pool se cierra después de detener el servidor HTTP.
 Temporalmente se usa el usuario de desarrollo de PostgreSQL. Antes de incorporar
 operaciones de negocio se separarán los permisos de aplicación y migraciones.
 
+## Migraciones
+
+Después de levantar Compose, desde la raíz:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File infra/migrate.ps1
+docker compose exec -T postgres psql -U movank -d movank -c "TABLE public.schema_migrations;"
+```
+
+El script aplica los archivos SQL por nombre y se detiene ante un error. Cada
+archivo guarda sus cambios y su versión en una misma transacción. El bloqueo
+transaccional evita que dos ejecuciones apliquen simultáneamente una migración.
+Repetir el comando omite las versiones registradas y conserva los datos.
+
+La primera migración crea `merchants`: UUID, nombre obligatorio de hasta 120
+caracteres sin contar espacios exteriores y fecha de creación. No crea comercios
+de ejemplo ni expone rutas nuevas. Las futuras tablas usarán el UUID del comercio
+para sus relaciones; el aislamiento desde el token todavía está pendiente.
+
+Las migraciones se ejecutan explícitamente, no al arrancar la API. Los archivos
+aplicados no se editan: cada cambio tendrá un nuevo número y usará el mismo bloqueo.
+Por ahora no hay checksum ni reversión automática de migraciones ya confirmadas;
+las correcciones se harán con otra migración. `/readyz` sigue comprobando conexión,
+no la versión del esquema.
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File tests/integration/migrations.ps1
+```
+
+La prueba usa una base temporal independiente: fuerza un error antes del commit,
+comprueba rollback completo, ejecuta dos migraciones en paralelo y verifica que
+repetirlas conserva los datos. También comprueba UUID único y nombre no vacío.
+Elimina solo su base temporal al terminar.
+
+Referencia: [bloqueos transaccionales de PostgreSQL](https://www.postgresql.org/docs/17/explicit-locking.html#ADVISORY-LOCKS).
+
 `HTTP_PORT` configura el puerto del proceso (8080 por defecto). Compose fija el
 interno en 8080 y permite cambiar el publicado mediante `API_PORT` en `.env`.
 Puertos inválidos impiden el arranque. No se cargan archivos dotenv desde Go;

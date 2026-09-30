@@ -9,8 +9,8 @@ y sincronizará mediante un Web Worker.
 
 El entorno local incluye PostgreSQL, Redis y el servicio Go conectado a PostgreSQL.
 Consulta [infraestructura](infra/README.md) para configurar `.env`, arrancar y
-verificar persistencia. El backend expone `GET /healthz` y `GET /readyz`; todavía no hay
-migraciones ni endpoints de negocio. Consulta [backend](backend/README.md)
+verificar persistencia. El backend expone `GET /healthz` y `GET /readyz`. La primera
+migración crea la tabla de comercios; no hay endpoints de negocio. Consulta [backend](backend/README.md)
 para ejecución, configuración y pruebas.
 
 ```text
@@ -34,6 +34,7 @@ Después, desde la raíz:
 
 ```powershell
 docker compose up -d --build --wait
+powershell -NoProfile -ExecutionPolicy Bypass -File infra/migrate.ps1
 Invoke-RestMethod http://127.0.0.1:8080/healthz
 Invoke-RestMethod http://127.0.0.1:8080/readyz
 ```
@@ -42,6 +43,8 @@ La respuesta esperada es `status: ok`. La construcción ejecuta las pruebas de G
 `infra/verify.ps1` comprueba persistencia de PostgreSQL y caché descartable en Redis.
 `tests/integration/database.ps1` comprueba caída y recuperación de PostgreSQL sin
 reiniciar Go. `/healthz` indica que el proceso responde; `/readyz`, que la base responde.
+`tests/integration/migrations.ps1` comprueba rollback, concurrencia y repetición de
+la primera migración en una base temporal.
 
 ## Decisiones para las siguientes funcionalidades
 

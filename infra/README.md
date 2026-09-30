@@ -1,7 +1,8 @@
-# Infraestructura local — etapa 2b
+# Infraestructura local
 
 Compose levanta PostgreSQL, Redis y el backend Go con `/healthz` y `/readyz`.
-Go se conecta a PostgreSQL; no hay tablas ni endpoints de negocio todavía.
+Go se conecta a PostgreSQL. La primera migración crea comercios; no hay endpoints
+de negocio todavía.
 
 ## Requisitos y configuración
 
@@ -28,6 +29,7 @@ existente. Compose rechaza una contraseña vacía. `.env` está excluido de Git.
 ```powershell
 docker compose config --quiet
 docker compose up -d --build --wait --wait-timeout 120
+powershell -NoProfile -ExecutionPolicy Bypass -File infra/migrate.ps1
 docker compose ps
 Invoke-RestMethod http://127.0.0.1:8080/healthz
 Invoke-RestMethod http://127.0.0.1:8080/readyz

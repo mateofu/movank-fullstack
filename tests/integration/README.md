@@ -6,3 +6,14 @@ junto a su código.
 
 Se probarán solicitudes concurrentes, reintentos, recuperación tras reinicios,
 pagos inciertos, Redis caído, aislamiento entre comercios y sincronización offline.
+
+Desde la raíz del proyecto:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File tests/integration/database.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File tests/integration/migrations.ps1
+```
+
+La primera comprueba caída y recuperación de PostgreSQL. La segunda comprueba
+migraciones en una base temporal: rollback ante fallos, ejecuciones concurrentes,
+reintentos sin pérdida de datos y restricciones de comercios.
