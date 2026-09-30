@@ -34,6 +34,7 @@ $client = New-Object System.Net.Http.HttpClient
 $client.Timeout = [TimeSpan]::FromSeconds(5)
 try {
     Invoke-Compose -ComposeArgs @('up', '-d', '--build', '--wait', '--wait-timeout', '120')
+    & ./infra/migrate.ps1
     Assert-Status '/readyz' 200
     $container = Invoke-Compose -ComposeArgs @('ps', '-q', 'backend')
     $started = & docker inspect --format '{{.State.StartedAt}}' $container

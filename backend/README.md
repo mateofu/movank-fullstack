@@ -15,6 +15,7 @@ Desde la raíz, con el `.env` preparado según [infraestructura](../infra/README
 
 ```powershell
 docker compose up -d --build --wait --wait-timeout 120
+powershell -NoProfile -ExecutionPolicy Bypass -File infra/migrate.ps1
 Invoke-RestMethod http://127.0.0.1:8080/healthz
 Invoke-RestMethod http://127.0.0.1:8080/readyz
 docker compose logs backend
@@ -39,8 +40,11 @@ conexión de 3 segundos. La comprobación HTTP impone su límite más corto de u
 segundo. Si PostgreSQL cae, Go permanece activo y el pool puede reconectar cuando
 vuelva. El pool se cierra después de detener el servidor HTTP.
 
-Temporalmente se usa el usuario de desarrollo de PostgreSQL. Antes de incorporar
-operaciones de negocio se separarán los permisos de aplicación y migraciones.
+Go usa `movank_app`, con contraseña propia (`APP_DB_PASSWORD`) y solo lectura de
+`merchants`. No puede crear tablas, cambiar el esquema ni modificar migraciones.
+El usuario `movank` queda para administración y migraciones locales. Los permisos
+de escritura se concederán por tabla cuando se implemente cada funcionalidad.
+Esto separa responsabilidades, pero todavía no aísla filas entre comercios.
 
 ## Migraciones
 
@@ -55,6 +59,9 @@ El script aplica los archivos SQL por nombre y se detiene ante un error. Cada
 archivo guarda sus cambios y su versión en una misma transacción. El bloqueo
 transaccional evita que dos ejecuciones apliquen simultáneamente una migración.
 Repetir el comando omite las versiones registradas y conserva los datos.
+Después configura `movank_app` con `infra/configure-app.sql`, que usa la contraseña
+del entorno y se puede volver a ejecutar. La configuración del usuario se mantiene
+fuera de las migraciones versionadas porque depende de credenciales locales.
 
 La primera migración crea `merchants`: UUID, nombre obligatorio de hasta 120
 caracteres sin contar espacios exteriores y fecha de creación. No crea comercios
@@ -116,11 +123,15 @@ Para comprobar caída y recuperación con PostgreSQL real, desde la raíz:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File tests/integration/database.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File tests/integration/permissions.ps1
 ```
 
 La prueba detiene PostgreSQL temporalmente, comprueba `/healthz` 200 y `/readyz`
 503, lo levanta de nuevo y verifica recuperación sin reiniciar el backend. No
 borra datos. Si cambiaste `API_PORT`, pasa `-BaseUrl http://127.0.0.1:TU_PUERTO`.
+La prueba de permisos abre una conexión TCP autenticada como `movank_app` y
+comprueba lectura permitida y operaciones prohibidas. Usa una transacción que
+se revierte; no modifica los comercios.
 
 La imagen final no incluye shell ni compilador. `/api healthcheck` permite que
 Docker compruebe el servidor sin instalar utilidades adicionales. El sistema de

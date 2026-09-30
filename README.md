@@ -45,6 +45,8 @@ La respuesta esperada es `status: ok`. La construcción ejecuta las pruebas de G
 reiniciar Go. `/healthz` indica que el proceso responde; `/readyz`, que la base responde.
 `tests/integration/migrations.ps1` comprueba rollback, concurrencia y repetición de
 la primera migración en una base temporal.
+`tests/integration/permissions.ps1` comprueba los permisos del usuario `movank_app`.
+Go usa ese usuario limitado; el administrador `movank` queda para migraciones.
 
 ## Decisiones para las siguientes funcionalidades
 

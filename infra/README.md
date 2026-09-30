@@ -20,9 +20,11 @@ Copy-Item .env.example .env
 notepad .env
 ```
 
-Completa `POSTGRES_PASSWORD` con una contraseña local propia. Una cadena aleatoria
+Completa `POSTGRES_PASSWORD` y `APP_DB_PASSWORD` con contraseñas locales distintas.
+Una cadena aleatoria
 alfanumérica evita problemas de interpolación dotenv. No sobrescribas un `.env`
 existente. Compose rechaza una contraseña vacía. `.env` está excluido de Git.
+Si ya tenías `.env`, agrega `APP_DB_PASSWORD` sin sobrescribir los demás valores.
 
 ## Arrancar y comprobar
 
@@ -55,7 +57,8 @@ la recreación: úsalo en este entorno de desarrollo.
 | Tu equipo | `127.0.0.1:5432` | `127.0.0.1:6379` |
 | Backend en Compose | `postgres:5432` | `redis:6379` (pendiente) |
 
-Base y usuario: `movank`; contraseña: la de `.env`. Si un puerto está ocupado,
+Base: `movank`. El administrador `movank` usa `POSTGRES_PASSWORD`; el backend
+usa `movank_app` con `APP_DB_PASSWORD`. Si un puerto está ocupado,
 cambia `POSTGRES_PORT` o `REDIS_PORT`; los puertos internos no cambian. Solo se
 publican en loopback, no en toda la red local. `API_PORT` cambia el puerto publicado
 del backend (8080 por defecto); ajusta la URL de comprobación si lo cambias.
@@ -72,6 +75,10 @@ docker compose up -d --wait --wait-timeout 120
 `down` conserva PostgreSQL. Añadir `--volumes` eliminaría sus datos y no forma
 parte del flujo habitual. Cambiar `.env` no cambia la contraseña de una base ya
 inicializada; las variables de la imagen se aplican en la primera inicialización.
+Esto aplica a `POSTGRES_PASSWORD`. Para cambiar la contraseña de aplicación,
+actualiza `APP_DB_PASSWORD`, ejecuta `docker compose up -d --wait`, vuelve a
+ejecutar `infra/migrate.ps1` y comprueba `/readyz`. El script actualiza la contraseña
+del rol existente sin eliminar datos. Hasta aplicarlo, `/readyz` puede devolver 503.
 
 ## Decisiones y límites
 
@@ -79,9 +86,11 @@ inicializada; las variables de la imagen se aplican en la primera inicializació
   tiene un límite de 64 MB y expulsa claves por LRU al alcanzarlo.
 - Redis no usa contraseña en este entorno local. Loopback y la red Docker limitan
   acceso; esta configuración no es para producción.
-- El usuario PostgreSQL inicial es administrador y se usa temporalmente para
-  comprobar conectividad. Los permisos de aplicación se separarán con las
-  migraciones antes de incorporar operaciones de negocio.
+- `movank` es el administrador local y ejecuta las migraciones. Go recibe solo
+  las credenciales de `movank_app`, que puede conectar y leer `merchants`.
+  No tiene permisos de administración ni acceso a `schema_migrations`.
+- `infra/migrate.ps1` configura ese rol después de las migraciones. Al arrancar
+  por primera vez, `/readyz` devuelve 503 hasta ejecutar el script.
 - PostgreSQL y Redis arrancan independientemente. La futura API deberá tolerar
   Redis caído. La reconstrucción del dashboard se probará en la etapa 7.
 
@@ -93,3 +102,4 @@ PostgreSQL esté listo antes de arrancar Go; la recuperación se comprueba con
 Referencias: [imagen PostgreSQL](https://hub.docker.com/_/postgres),
 [imagen Redis](https://hub.docker.com/_/redis),
 [healthchecks de Compose](https://docs.docker.com/compose/how-tos/startup-order/).
+[Permisos de PostgreSQL](https://www.postgresql.org/docs/17/ddl-priv.html).
