@@ -63,7 +63,16 @@ try {
     Invoke-SQL -Database $testDatabase -Query "INSERT INTO public.merchants (name) VALUES ('   ');" -ExpectFailure
     Invoke-SQL -Database $testDatabase -Query "INSERT INTO public.merchants (id, name) VALUES ('00000000-0000-0000-0000-000000000001', 'Duplicado');" -ExpectFailure
     Assert-Value 'SELECT count(*) FROM public.merchants;' '1'
-    Write-Output 'OK: rollback completo, ejecucion concurrente, reintentos sin perder datos y restricciones de comercios.'
+    $products = Get-Content -Raw -Encoding UTF8 'backend/migrations/002_products.sql'
+    Invoke-SQL -Database $testDatabase -Query $products.Replace('COMMIT;', "SELECT 1 / 0;`nCOMMIT;") -ExpectFailure
+    Assert-Value "SELECT to_regclass('public.products') IS NULL;" 't'
+    Assert-Value 'SELECT count(*) FROM public.schema_migrations;' '1'
+    Invoke-SQL -Database $testDatabase -Query $products | Out-Null
+    Invoke-SQL -Database $testDatabase -Query $products | Out-Null
+    Assert-Value 'SELECT count(*) FROM public.schema_migrations;' '2'
+    Invoke-SQL -Database $testDatabase -Query "INSERT INTO public.products (merchant_id, sku, name, price_minor, currency) VALUES ('00000000-0000-0000-0000-000000000001', 'BAD', 'Bad price', -1, 'COP');" -ExpectFailure
+    Invoke-SQL -Database $testDatabase -Query "INSERT INTO public.products (merchant_id, sku, name, price_minor, currency) VALUES ('00000000-0000-0000-0000-000000000002', 'BAD', 'Missing merchant', 100, 'COP');" -ExpectFailure
+    Write-Output 'OK: rollback, concurrencia y reintentos de migraciones; restricciones de comercios y productos.'
 }
 finally {
     try {

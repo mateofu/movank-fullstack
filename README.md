@@ -10,8 +10,8 @@ y sincronizará mediante un Web Worker.
 El entorno local incluye PostgreSQL, Redis y el servicio Go conectado a PostgreSQL.
 Consulta [infraestructura](infra/README.md) para configurar `.env`, arrancar y
 verificar persistencia. El backend expone `GET /healthz`, `GET /readyz` y la ruta
-protegida `GET /v1/me`. La primera migración crea comercios; productos y ventas
-siguen pendientes. Consulta [backend](backend/README.md)
+protegida `GET /v1/me`. También permite crear y consultar productos por comercio.
+Las ventas siguen pendientes. Consulta [backend](backend/README.md)
 para ejecución, configuración y pruebas.
 
 ```text
@@ -49,6 +49,8 @@ la primera migración en una base temporal.
 `tests/integration/permissions.ps1` comprueba los permisos del usuario `movank_app`.
 Go usa ese usuario limitado; el administrador `movank` queda para migraciones.
 `tests/integration/auth.ps1` comprueba tokens y separación de comercios en `/v1/me`.
+`tests/integration/products.ps1` comprueba catálogo, validación, aislamiento y
+creaciones concurrentes con el mismo SKU.
 
 ## Decisiones para las siguientes funcionalidades
 

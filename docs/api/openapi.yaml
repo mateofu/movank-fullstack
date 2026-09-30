@@ -1,11 +1,127 @@
 openapi: 3.0.3
 info:
   title: Movank API
-  version: 0.2.0
-  description: Comprobaciones operativas e identidad autenticada. Productos y ventas están pendientes.
+  version: 0.3.0
+  description: Comprobaciones operativas, identidad y productos por comercio. Ventas pendientes.
 servers:
   - url: http://localhost:8080
 paths:
+  /v1/products:
+    post:
+      operationId: createProduct
+      summary: Crea un producto del comercio autenticado
+      description: SKU normalizado y único por comercio. No admite merchant_id ni parámetros de query. Cuerpo máximo de 8192 bytes.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductInput'
+      responses:
+        '201':
+          description: Producto creado
+          headers:
+            Location:
+              schema:
+                type: string
+              description: Ruta del producto creado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/SKUConflict'
+        '413':
+          $ref: '#/components/responses/BodyTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+    get:
+      operationId: listProducts
+      summary: Lista productos del comercio autenticado
+      description: Ordenados por UUID ascendente. Rechaza parámetros desconocidos o repetidos. La paginación no es una instantánea ante altas concurrentes.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+        - in: query
+          name: after
+          description: UUID indicado por next_cursor en la página anterior
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Página del catálogo; next_cursor es null al terminar
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [items, next_cursor]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Product'
+                  next_cursor:
+                    type: string
+                    format: uuid
+                    nullable: true
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /v1/products/{id}:
+    get:
+      operationId: getProduct
+      summary: Consulta un producto del comercio autenticado
+      description: Devuelve el mismo 404 si no existe o pertenece a otro comercio. No admite query.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Producto encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '503':
+          $ref: '#/components/responses/Unavailable'
   /v1/me:
     get:
       operationId: currentIdentity
@@ -95,6 +211,60 @@ paths:
                     type: string
                     enum: [unavailable]
 components:
+  responses:
+    BadRequest:
+      description: JSON, campos o parámetros inválidos
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ProductError'
+    Unauthorized:
+      description: Token ausente, inválido o vencido
+      headers:
+        WWW-Authenticate:
+          schema:
+            type: string
+            enum: [Bearer]
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ProductError'
+    Forbidden:
+      description: El comercio autenticado ya no existe
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ProductError'
+    NotFound:
+      description: Producto no encontrado en el comercio autenticado
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ProductError'
+    SKUConflict:
+      description: El SKU normalizado ya existe en este comercio
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ProductError'
+    BodyTooLarge:
+      description: Cuerpo mayor a 8192 bytes
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ProductError'
+    UnsupportedMediaType:
+      description: Se requiere Content-Type application/json
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ProductError'
+    Unavailable:
+      description: No se pudo completar la operación en PostgreSQL
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ProductError'
   securitySchemes:
     bearerAuth:
       type: http
@@ -102,6 +272,63 @@ components:
       bearerFormat: JWT
       description: JWT HS256 con iss=movank-local, aud=movank-api, exp, iat, nbf, sub (UUID) y merchant_id (UUID).
   schemas:
+    ProductInput:
+      type: object
+      additionalProperties: false
+      required: [sku, name, price_minor, currency]
+      properties:
+        sku:
+          type: string
+          description: Se recortan espacios y convierte a mayúsculas; resultado de 1 a 64 caracteres A-Z, 0-9, punto, guion o guion bajo, comenzando por letra o número.
+          example: CAFE-01
+        name:
+          type: string
+          description: De 1 a 120 caracteres después de recortar espacios exteriores
+          example: Café
+        price_minor:
+          type: integer
+          format: int64
+          minimum: 1
+          maximum: 1000000000000
+          description: Centavos de COP; debe enviarse como entero sin decimales
+          example: 125050
+        currency:
+          type: string
+          enum: [COP]
+    Product:
+      type: object
+      additionalProperties: false
+      required: [id, sku, name, price_minor, currency, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        sku:
+          type: string
+          pattern: '^[A-Z0-9][A-Z0-9._-]{0,63}$'
+        name:
+          type: string
+          minLength: 1
+          maxLength: 120
+        price_minor:
+          type: integer
+          format: int64
+          minimum: 1
+          maximum: 1000000000000
+        currency:
+          type: string
+          enum: [COP]
+        created_at:
+          type: string
+          format: date-time
+    ProductError:
+      type: object
+      additionalProperties: false
+      required: [error]
+      properties:
+        error:
+          type: string
+          enum: [invalid_query, invalid_request, invalid_json, invalid_product, body_too_large, unsupported_media_type, sku_conflict, not_found, unauthorized, forbidden, unavailable]
     AuthError:
       type: object
       additionalProperties: false

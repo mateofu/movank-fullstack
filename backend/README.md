@@ -22,8 +22,8 @@ docker compose logs backend
 ```
 
 `GET /healthz` devuelve HTTP 200 con `{"status":"ok"}`. Es una comprobación de
-vida del proceso, no de disponibilidad de PostgreSQL ni Redis. Productos y ventas
-siguen pendientes.
+vida del proceso, no de disponibilidad de PostgreSQL ni Redis. Las ventas siguen
+pendientes.
 
 `GET /readyz` consulta PostgreSQL: devuelve 200 con `{"status":"ok"}` si responde
 y 503 con `{"status":"unavailable"}` si falla o tarda más de un segundo.
@@ -40,8 +40,9 @@ conexión de 3 segundos. La comprobación HTTP impone su límite más corto de u
 segundo. Si PostgreSQL cae, Go permanece activo y el pool puede reconectar cuando
 vuelva. El pool se cierra después de detener el servidor HTTP.
 
-Go usa `movank_app`, con contraseña propia (`APP_DB_PASSWORD`) y solo lectura de
-`merchants`. No puede crear tablas, cambiar el esquema ni modificar migraciones.
+Go usa `movank_app`, con contraseña propia (`APP_DB_PASSWORD`), lectura de
+`merchants` y lectura/creación de `products`. No puede crear tablas, cambiar el
+esquema ni modificar migraciones.
 El usuario `movank` queda para administración y migraciones locales. Los permisos
 de escritura se concederán por tabla cuando se implemente cada funcionalidad.
 Esto separa responsabilidades, pero todavía no aísla filas entre comercios.
@@ -77,8 +78,8 @@ Este emisor es local: el operador asigna el UUID del usuario; todavía no existe
 registro de usuarios, login, renovación ni revocación individual de tokens. El
 frontend tendrá su flujo de sesión con cookie HttpOnly. La firma acredita lo
 emitido por el operador, no verifica credenciales de usuario. Esta etapa comprueba
-aislamiento únicamente para la consulta `/v1/me`; productos, ventas y SSE deberán
-aplicar el mismo ámbito al implementarse.
+aislamiento para `/v1/me` y productos; ventas y SSE deberán aplicar el mismo ámbito
+al implementarse.
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File tests/integration/auth.ps1
@@ -87,6 +88,49 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tests/integration/auth.ps1
 La prueba crea dos comercios temporales, emite sus tokens y verifica que parámetros
 manipulados no cambien de comercio. También rechaza tokens inválidos y un token cuyo
 comercio se eliminó. Borra únicamente sus comercios de prueba al terminar.
+
+## Productos
+
+- `POST /v1/products`: crea un producto; devuelve 201 y su ruta en `Location`.
+- `GET /v1/products?limit=50`: lista el catálogo del comercio autenticado.
+- `GET /v1/products/{id}`: consulta un producto; uno ajeno devuelve el mismo 404
+  que un UUID inexistente.
+
+Usando el token del ejemplo anterior:
+
+```powershell
+$body = @{ sku = 'CAFE-01'; name = 'Cafe'; price_minor = 125050; currency = 'COP' } | ConvertTo-Json
+Invoke-RestMethod http://127.0.0.1:8080/v1/products -Method Post -ContentType 'application/json' -Headers @{ Authorization = "Bearer $token" } -Body $body
+Invoke-RestMethod http://127.0.0.1:8080/v1/products -Headers @{ Authorization = "Bearer $token" }
+```
+
+`price_minor` se guarda como entero: 125050 representa 1250,50 COP. Solo se admite
+COP y valores entre 1 y 1000000000000 unidades menores. Ese límite técnico evita
+cantidades fuera del rango previsto; no representa un límite del proveedor de pago.
+SKU y nombre se recortan; el SKU se convierte a mayúsculas. El nombre admite hasta
+120 caracteres y el SKU hasta 64, con las reglas detalladas en OpenAPI.
+
+El cuerpo debe ser JSON, de hasta 8 KiB, sin campos desconocidos. Enviar
+`merchant_id` en el cuerpo se rechaza. Las consultas siempre incluyen el comercio
+del token. El índice único `(merchant_id, sku)` impide duplicados incluso con
+solicitudes simultáneas; otro comercio puede usar el mismo SKU. Repetir una creación
+con ese SKU devuelve 409, no un segundo producto.
+
+El listado admite de 1 a 100 elementos (50 por defecto). Continúa usando
+`after=next_cursor` hasta recibir `next_cursor: null`. El orden es por UUID y no
+constituye una instantánea: las altas concurrentes pueden requerir refrescar el
+catálogo completo. No hay edición, borrado, stock ni actualización de precios aún.
+La clave primaria `(merchant_id, id)` permitirá que las futuras ventas referencien
+productos del mismo comercio. No usamos RLS todavía: el aislamiento de lecturas
+se aplica mediante el ámbito obligatorio de los repositorios.
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File tests/integration/products.ps1
+```
+
+Prueba dos comercios, acceso cruzado por UUID, paginación, precios inválidos y seis
+creaciones simultáneas con un SKU: solo una debe devolver 201, las otras 409.
+Los productos y comercios temporales se eliminan al terminar.
 
 ## Migraciones
 

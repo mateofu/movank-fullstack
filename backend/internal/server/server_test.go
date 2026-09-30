@@ -21,7 +21,7 @@ func testHandler(check func(context.Context) error) http.Handler {
 	tokens, _ := auth.New(strings.Repeat("ab", 32))
 	return Handler(check, tokens, func(context.Context, string) (merchant.Merchant, error) {
 		return merchant.Merchant{}, merchant.ErrNotFound
-	})
+	}, nil)
 }
 
 func TestRoutes(t *testing.T) {

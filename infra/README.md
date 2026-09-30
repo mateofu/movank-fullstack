@@ -2,7 +2,8 @@
 
 Compose levanta PostgreSQL, Redis y el backend Go con `/healthz` y `/readyz`.
 Go se conecta a PostgreSQL. La primera migración crea comercios y `/v1/me` permite
-consultar la identidad del token. Productos y ventas siguen pendientes.
+consultar la identidad del token. La segunda migración añade productos por comercio;
+las ventas siguen pendientes.
 
 ## Requisitos y configuración
 
@@ -102,7 +103,7 @@ del rol existente sin eliminar datos. Hasta aplicarlo, `/readyz` puede devolver 
 - Redis no usa contraseña en este entorno local. Loopback y la red Docker limitan
   acceso; esta configuración no es para producción.
 - `movank` es el administrador local y ejecuta las migraciones. Go recibe solo
-  las credenciales de `movank_app`, que puede conectar y leer `merchants`.
+  las credenciales de `movank_app`, que puede leer `merchants` y leer/crear `products`.
   No tiene permisos de administración ni acceso a `schema_migrations`.
 - `infra/migrate.ps1` configura ese rol después de las migraciones. Al arrancar
   por primera vez, `/readyz` devuelve 503 hasta ejecutar el script.
