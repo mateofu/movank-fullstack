@@ -3,7 +3,8 @@
 Prueba full stack con Go, PostgreSQL, Redis y SvelteKit.
 
 Implementado: JWT, productos, ventas idempotentes, pagos simulados, reconciliación,
-outbox, worker y dashboard con Redis y SSE. Pendiente: frontend PWA offline.
+outbox, worker y dashboard con Redis y SSE. La interfaz permite vender y conserva
+el carrito en IndexedDB. Pendiente: instalación PWA y sincronización offline.
 
 ## Ejecutar
 
@@ -14,6 +15,8 @@ docker compose up -d --build --wait
 powershell -NoProfile -ExecutionPolicy Bypass -File infra/migrate.ps1
 Invoke-RestMethod http://127.0.0.1:8080/readyz
 ```
+
+Interfaz: sigue los comandos de [frontend](frontend/README.md).
 
 ## Decisiones
 

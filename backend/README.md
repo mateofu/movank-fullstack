@@ -10,6 +10,7 @@ Arranque: [guía principal](../README.md). Contrato: [OpenAPI](../docs/api/opena
 - `GET /healthz`: proceso activo.
 - `GET /readyz`: conexión a PostgreSQL; no comprueba migraciones.
 - `GET /v1/me`: identidad autenticada.
+- `POST /v1/session` y `DELETE /v1/session`: abrir y cerrar sesión del navegador.
 - `POST /v1/products`: crear producto.
 - `GET /v1/products`: catálogo paginado.
 - `GET /v1/products/{id}`: consultar producto.
@@ -19,7 +20,7 @@ Arranque: [guía principal](../README.md). Contrato: [OpenAPI](../docs/api/opena
 - `GET /v1/dashboard/today`: pagos aprobados del día UTC.
 - `GET /v1/dashboard/stream`: agregado completo por SSE.
 
-Las rutas `/v1` requieren JWT. El comercio viene del token verificado y las
+Las rutas de negocio requieren JWT por Bearer o cookie. El comercio viene del token verificado y las
 consultas filtran por él; no hay RLS. Los importes son enteros en centavos de COP.
 El SKU es único por comercio. La paginación no es una instantánea ante nuevas altas.
 
@@ -37,6 +38,10 @@ Invoke-RestMethod http://127.0.0.1:8080/v1/me -Headers @{ Authorization = "Beare
 
 El token dura 15 minutos. Es una herramienta del operador: no hay login,
 renovación ni revocación individual. No guardes tokens en Git ni localStorage.
+El navegador lo intercambia por una cookie HttpOnly, SameSite=Strict y Secure en
+HTTPS. Las escrituras con cookie validan Origin. `X-Workspace` solo comprueba
+que la sesión no cambió; nunca selecciona el comercio. Detrás de un proxy HTTPS,
+configura `PUBLIC_ORIGIN` con el origen público. En local puede quedar vacío.
 
 ## Ventas y migraciones
 
@@ -71,7 +76,7 @@ y revisa pendientes cada 2 segundos. Reprocesar envía una instantánea, no suma
 Redis guarda el dashboard 30 segundos: una operación atómica impide retrocesos;
 `singleflight` agrupa reconstrucciones simultáneas. Sin Redis se consulta PostgreSQL.
 SSE comparte eventos por comercio, manda una instantánea al reconectar y termina
-al vencer el JWT. Se consume con `fetch` y Bearer, sin tokens en la URL.
+al vencer el JWT. Se consume con `fetch` y Bearer o cookie, sin tokens en la URL.
 
 Límites: un proceso Go, días UTC, sin reembolso ni segundo intento tras rechazo.
 Proveedor real, login y revisión operativa de pagos irresueltos quedan fuera.

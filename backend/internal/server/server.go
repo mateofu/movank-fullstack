@@ -60,6 +60,7 @@ func Handler(checkDatabase func(context.Context) error, tokens *auth.Authenticat
 		}{UserID: principal.UserID, Merchant: commerce})
 	})))
 	registerProducts(mux, tokens, getMerchant, products)
+	registerSession(mux, tokens, getMerchant)
 	registerSales(mux, tokens, getMerchant, sales, features...)
 	if len(features) > 0 {
 		registerPayments(mux, tokens, getMerchant, features[0])

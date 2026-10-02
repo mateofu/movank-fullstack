@@ -51,7 +51,7 @@ func run(logger *slog.Logger) error {
 	if len(os.Args) > 1 && (len(os.Args) != 4 || os.Args[1] != "token") {
 		return fmt.Errorf("usage: api [healthcheck | token MERCHANT_UUID USER_UUID]")
 	}
-	tokens, err := auth.New(os.Getenv("AUTH_SIGNING_KEY"))
+	tokens, err := auth.New(os.Getenv("AUTH_SIGNING_KEY"), os.Getenv("PUBLIC_ORIGIN"))
 	if err != nil {
 		return err
 	}

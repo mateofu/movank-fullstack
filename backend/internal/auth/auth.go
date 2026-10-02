@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"net/http"
+	"net/url"
 	"regexp"
 	"strings"
 	"time"
@@ -39,15 +40,26 @@ func (c claims) Validate() error {
 }
 
 type Authenticator struct {
-	key []byte
+	key    []byte
+	origin string
 }
 
-func New(encodedKey string) (*Authenticator, error) {
+func New(encodedKey string, publicOrigin ...string) (*Authenticator, error) {
 	key, err := hex.DecodeString(encodedKey)
 	if err != nil || len(key) < 32 {
 		return nil, errors.New("AUTH_SIGNING_KEY must contain at least 32 random bytes encoded as hexadecimal")
 	}
-	return &Authenticator{key: key}, nil
+	origin := ""
+	if len(publicOrigin) > 0 {
+		origin = strings.TrimSuffix(publicOrigin[0], "/")
+	}
+	if origin != "" {
+		u, err := url.Parse(origin)
+		if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || u.User != nil || u.Path != "" || u.RawQuery != "" || u.Fragment != "" {
+			return nil, errors.New("PUBLIC_ORIGIN must be an http or https origin")
+		}
+	}
+	return &Authenticator{key: key, origin: origin}, nil
 }
 
 func (a *Authenticator) Issue(merchantID, userID string) (string, error) {
@@ -101,12 +113,26 @@ func (a *Authenticator) Require(next http.Handler) http.Handler {
 				valid = err == nil
 			}
 		}
+		if len(values) == 0 {
+			if cookie, err := r.Cookie(SessionCookie); err == nil {
+				principal, err = a.Verify(cookie.Value)
+				valid = err == nil
+				if valid && r.Method != "GET" && r.Method != "HEAD" && !a.SameOrigin(r) {
+					authError(w, 403, "invalid_origin")
+					return
+				}
+			}
+		}
 		if !valid {
 			w.Header().Set("Content-Type", "application/json")
 			w.Header().Set("Cache-Control", "no-store")
 			w.Header().Set("WWW-Authenticate", "Bearer")
 			w.WriteHeader(http.StatusUnauthorized)
 			_, _ = w.Write([]byte("{\"error\":\"unauthorized\"}\n"))
+			return
+		}
+		if expected := r.Header.Get("X-Workspace"); expected != "" && expected != principal.MerchantID+":"+principal.UserID {
+			authError(w, 409, "session_changed")
 			return
 		}
 		ctx := context.WithValue(r.Context(), principalKey{}, principal)
